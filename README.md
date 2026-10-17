@@ -48,3 +48,9 @@
 系统字体、系统权限、仓库之外的应用级偏好不在同步范围内。桌面专用插件的文件可以复制到手机，但是否可运行取决于插件的平台支持。配置按整个文件同步，不进行字段级合并。
 
 本仓库不包含个人仓库、WebDAV 账号、密码、令牌、加密密码或用户配置。原作者和许可说明见 `NOTICE.txt`。
+
+## 可复用迁移 Skill
+
+[obsidian-environment-migration](skills/obsidian-environment-migration/SKILL.md) 保存通过 WebDAV 迁移笔记、附件和完整使用环境的执行流程，包含插件安装、远端目录绑定、首次单向拉取、环境恢复、备份与摘要核对，以及 iOS 人工操作分支。Skill 文件本身不包含插件安装包或个人连接配置。
+
+将该 skill 文件夹交给支持 `SKILL.md` 的工具后，可请求：`使用 $obsidian-environment-migration，把指定源库的笔记和完整使用环境迁移到指定目标库。` 调用时仍需提供可用的定制插件及连接来源；只浏览 GitHub 文件不会自动安装或启用 skill。
