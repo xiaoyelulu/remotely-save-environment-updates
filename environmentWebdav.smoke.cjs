@@ -89,6 +89,7 @@ async function main() {
     },
   };
   const originalLoad = Module._load;
+  const originalFetch = global.fetch;
   try {
     for (const [relative, content] of Object.entries(source)) {
       await put(cloud, `vault/.obsidian/${relative}`, content);
@@ -103,6 +104,10 @@ async function main() {
     );
     await new Promise((resolve) => server.start(resolve));
     global.window = global;
+    global.moment = (value) => ({
+      format: () => new Date(value).toISOString(),
+      toISOString: () => new Date(value).toISOString(),
+    });
     global.document = new JSDOM(
       "<!doctype html><html><body></body></html>"
     ).window.document;
@@ -128,7 +133,7 @@ async function main() {
     };
     const Plugin = require("../main.js").default;
     const plugin = new Plugin();
-    plugin.manifest = { id: "remotely-save" };
+    plugin.manifest = { id: "remotely-save", version: "0.5.27" };
     plugin.i18n = { t: (key, vars) => `${key} ${JSON.stringify(vars ?? {})}` };
     const toLocalPath = (relative) => {
       const fullPath = path.resolve(device, relative);
@@ -255,7 +260,98 @@ async function main() {
       );
     }
     assert.equal(saves, 4);
+
+    // Normal sync must also refresh an existing account before WebDAV runs.
+    // Fake only the account API; WebDAV still uses the real loopback server.
+    const accountRequests = [];
+    const newFeatures = [
+      {
+        featureName: "feature-smart_conflict",
+        expireAtTimeMs: Date.now() + 86400000,
+      },
+    ];
+    global.fetch = async (url, options) => {
+      if (url === "https://remotelysave.com/api/v1/oauth2/token") {
+        const body = new URLSearchParams(options.body);
+        assert.equal(body.get("refresh_token"), "test-refresh-token");
+        assert.ok(body.get("client_id").startsWith("cli-"));
+        accountRequests.push("refresh");
+        return new Response(
+          JSON.stringify({
+            access_token: "test-access-token",
+            expires_in: 3600,
+          })
+        );
+      }
+      if (url === "https://remotelysave.com/api/v1/pro/list") {
+        assert.equal(options.headers.Authorization, "Bearer test-access-token");
+        accountRequests.push("features");
+        return new Response(JSON.stringify({ proFeatures: newFeatures }));
+      }
+      assert.ok(
+        typeof url === "string" &&
+          url.startsWith(`http://127.0.0.1:${server.server.address().port}/`),
+        `Unexpected network destination in smoke test: ${url}`
+      );
+      return originalFetch(url, options);
+    };
+    const values = new Map();
+    const table = {
+      setItem: async (key, value) => {
+        values.set(key, value);
+        return value;
+      },
+      getItems: async () => ({}),
+    };
+    plugin.db = {
+      prevSyncRecordsTbl: table,
+      syncPlansTbl: table,
+      simpleKVForMiscTbl: table,
+    };
+    plugin.vaultRandomID = "test-vault";
+    plugin.app.vault.getAllLoadedFiles = () => [];
+    plugin.environmentRestartRequired = false;
+    plugin.settings = {
+      serviceType: "webdav",
+      password: "",
+      encryptionMethod: "rclone-base64",
+      conflictAction: "smart_conflict",
+      syncConfigDir: false,
+      webdav: {
+        address: `http://127.0.0.1:${server.server.address().port}`,
+        username: "",
+        password: "",
+        remoteBaseDir: "vault",
+        depth: "manual_1",
+        manualRecursive: true,
+      },
+      pro: {
+        accessToken: "",
+        accessTokenExpiresAtTimeMs: 0,
+        refreshToken: "test-refresh-token",
+        enabledProFeatures: [
+          { featureName: "feature-smart_conflict", expireAtTimeMs: 1 },
+        ],
+      },
+    };
+    await plugin.syncRun("dry");
+    assert.deepEqual(accountRequests, ["refresh", "features"]);
+    assert.equal(
+      values.has("test-vault-lastFailedSyncMillis"),
+      false,
+      "Dry sync must finish without an account/network failure"
+    );
+    assert.equal(values.has("test-vault-lastSuccessSyncMillis"), true);
+    assert.ok(
+      [...values.keys()].some((key) => key.startsWith("test-vault\t")),
+      "Dry sync must reach sync-plan generation"
+    );
+    assert.equal(plugin.isSyncing, false);
+    console.log(
+      "Production normal sync passed (expired account token, official endpoint, WebDAV dry run)"
+    );
   } finally {
+    global.fetch = originalFetch;
     Module._load = originalLoad;
     if (server.server?.listening)
       await new Promise((resolve) => server.stop(resolve));

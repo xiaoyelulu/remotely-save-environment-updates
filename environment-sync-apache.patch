@@ -82,11 +82,62 @@ index 30f4034..24755fa 100644
  
  ## 隐藏文件或文件夹
  
+diff --git a/buildAccountConfig.cjs b/buildAccountConfig.cjs
+new file mode 100644
+index 0000000..8148dbb
+--- /dev/null
++++ b/buildAccountConfig.cjs
+@@ -0,0 +1,24 @@
++// These are the public account-service URL and OAuth client identifier shipped
++// by the original plugin. They are not user credentials or a client secret.
++const OFFICIAL_ACCOUNT_WEBSITE = "https://remotelysave.com";
++const OFFICIAL_PUBLIC_CLIENT_ID =
++  "cli-RcskZDNbskll95WHJ3rNa8G34YlD3DML3cmwGOpEpbpvm82rIVGWmQMKJ60NjjGJKB6H_fOeHicW9W0H";
++
++const resolveAccountBuildConfig = (env = {}) => {
++  const website = env.REMOTELYSAVE_WEBSITE?.trim() || OFFICIAL_ACCOUNT_WEBSITE;
++  const clientId =
++    env.REMOTELYSAVE_CLIENT_ID?.trim() || OFFICIAL_PUBLIC_CLIENT_ID;
++  const url = new URL(website);
++  if (
++    !["http:", "https:"].includes(url.protocol) ||
++    url.username ||
++    url.password
++  ) {
++    throw Error(
++      "REMOTELYSAVE_WEBSITE must be an absolute HTTP(S) URL without credentials"
++    );
++  }
++  return { website: website.replace(/\/+$/, ""), clientId };
++};
++
++module.exports = { resolveAccountBuildConfig };
 diff --git a/esbuild.config.mjs b/esbuild.config.mjs
-index 8796b80..7c961ea 100644
+index 8796b80..0d3b5c2 100644
 --- a/esbuild.config.mjs
 +++ b/esbuild.config.mjs
-@@ -32,6 +32,25 @@ const DEFAULT_YANDEXDISK_CLIENT_SECRET =
+@@ -2,6 +2,7 @@ import "dotenv/config";
+ import esbuild from "esbuild";
+ import inlineWorkerPlugin from "esbuild-plugin-inline-worker";
+ import process from "process";
++import accountBuildConfig from "./buildAccountConfig.cjs";
+ // import builtins from 'builtin-modules'
+ 
+ const banner = `/*
+@@ -17,8 +18,10 @@ const prod = process.argv[2] === "production";
+ const DEFAULT_DROPBOX_APP_KEY = process.env.DROPBOX_APP_KEY || "";
+ const DEFAULT_ONEDRIVE_CLIENT_ID = process.env.ONEDRIVE_CLIENT_ID || "";
+ const DEFAULT_ONEDRIVE_AUTHORITY = process.env.ONEDRIVE_AUTHORITY || "";
+-const DEFAULT_REMOTELYSAVE_WEBSITE = process.env.REMOTELYSAVE_WEBSITE || "";
+-const DEFAULT_REMOTELYSAVE_CLIENT_ID = process.env.REMOTELYSAVE_CLIENT_ID || "";
++const {
++  website: DEFAULT_REMOTELYSAVE_WEBSITE,
++  clientId: DEFAULT_REMOTELYSAVE_CLIENT_ID,
++} = accountBuildConfig.resolveAccountBuildConfig(process.env);
+ const DEFAULT_GOOGLEDRIVE_CLIENT_ID = process.env.GOOGLEDRIVE_CLIENT_ID || "";
+ const DEFAULT_GOOGLEDRIVE_CLIENT_SECRET =
+   process.env.GOOGLEDRIVE_CLIENT_SECRET || "";
+@@ -32,6 +35,25 @@ const DEFAULT_YANDEXDISK_CLIENT_SECRET =
  const DEFAULT_KOOFR_CLIENT_ID = process.env.KOOFR_CLIENT_ID || "";
  const DEFAULT_KOOFR_CLIENT_SECRET = process.env.KOOFR_CLIENT_SECRET || "";
  
@@ -112,7 +163,7 @@ index 8796b80..7c961ea 100644
  esbuild
    .context({
      banner: {
-@@ -45,15 +64,10 @@ esbuild
+@@ -45,15 +67,10 @@ esbuild
      external: [
        "obsidian",
        "electron",
@@ -129,7 +180,7 @@ index 8796b80..7c961ea 100644
      inject: ["./esbuild.injecthelper.mjs"],
      format: "cjs",
      // watch: !prod, // no longer valid in esbuild 0.17
-@@ -90,7 +104,7 @@ esbuild
+@@ -90,7 +107,7 @@ esbuild
        // https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-util/src/checkEnvironment.ts
        "globalThis.process.versions": `undefined`,
      },
@@ -139,7 +190,7 @@ index 8796b80..7c961ea 100644
    .then((context) => {
      if (process.argv.includes("--watch")) {
 diff --git a/manifest-beta.json b/manifest-beta.json
-index 33b159f..88b833d 100644
+index 33b159f..901e374 100644
 --- a/manifest-beta.json
 +++ b/manifest-beta.json
 @@ -1,7 +1,7 @@
@@ -147,12 +198,12 @@ index 33b159f..88b833d 100644
    "id": "remotely-save",
    "name": "Remotely Save",
 -  "version": "0.5.25",
-+  "version": "0.5.26",
++  "version": "0.5.27",
    "minAppVersion": "0.13.21",
    "description": "Yet another unofficial plugin allowing users to synchronize notes between local device and the cloud service.",
    "author": "fyears",
 diff --git a/manifest.json b/manifest.json
-index 33b159f..88b833d 100644
+index 33b159f..901e374 100644
 --- a/manifest.json
 +++ b/manifest.json
 @@ -1,7 +1,7 @@
@@ -160,19 +211,19 @@ index 33b159f..88b833d 100644
    "id": "remotely-save",
    "name": "Remotely Save",
 -  "version": "0.5.25",
-+  "version": "0.5.26",
++  "version": "0.5.27",
    "minAppVersion": "0.13.21",
    "description": "Yet another unofficial plugin allowing users to synchronize notes between local device and the cloud service.",
    "author": "fyears",
 diff --git a/package.json b/package.json
-index e0f2d57..0961cb3 100644
+index e0f2d57..9b50cdd 100644
 --- a/package.json
 +++ b/package.json
 @@ -1,6 +1,6 @@
  {
    "name": "remotely-save",
 -  "version": "0.5.25",
-+  "version": "0.5.26",
++  "version": "0.5.27",
    "description": "This is yet another sync plugin for Obsidian app.",
    "scripts": {
      "dev2": "node esbuild.config.mjs --watch",
@@ -990,6 +1041,64 @@ index a29e468..dc69a3e 100644
      new Setting(advDiv)
        .setName(t("settings_concurrency"))
        .setDesc(t("settings_concurrency_desc"))
+diff --git a/tests/buildAccountConfig.test.ts b/tests/buildAccountConfig.test.ts
+new file mode 100644
+index 0000000..28150ed
+--- /dev/null
++++ b/tests/buildAccountConfig.test.ts
+@@ -0,0 +1,52 @@
++import { strict as assert } from "assert";
++import accountBuildConfig from "../buildAccountConfig.cjs";
++
++const { resolveAccountBuildConfig } = accountBuildConfig;
++
++describe("Account service build configuration", () => {
++  it("uses an absolute official endpoint and a public client ID in credential-free builds", () => {
++    const config = resolveAccountBuildConfig({});
++    assert.equal(config.website, "https://remotelysave.com");
++    assert.ok(config.clientId.startsWith("cli-"));
++    assert.equal(
++      new URL("api/v1/oauth2/token", `${config.website}/`).origin,
++      "https://remotelysave.com"
++    );
++  });
++
++  it("treats empty environment variables as missing, rather than fetching app:// paths", () => {
++    for (const value of ["", "   "]) {
++      const config = resolveAccountBuildConfig({
++        REMOTELYSAVE_WEBSITE: value,
++        REMOTELYSAVE_CLIENT_ID: value,
++      });
++      assert.equal(config.website, "https://remotelysave.com");
++      assert.ok(config.clientId.length > 4);
++    }
++  });
++
++  it("preserves explicit developer endpoints and public client IDs", () => {
++    const config = resolveAccountBuildConfig({
++      REMOTELYSAVE_WEBSITE: " http://127.0.0.1:46683/ ",
++      REMOTELYSAVE_CLIENT_ID: " cli-test ",
++    });
++    assert.deepEqual(config, {
++      website: "http://127.0.0.1:46683",
++      clientId: "cli-test",
++    });
++  });
++
++  it("fails the build for relative paths, non-HTTP schemes or URLs containing credentials", () => {
++    for (const website of [
++      "/",
++      "remotelysave.com",
++      "app://obsidian.md",
++      "file:///api",
++      "https://user:password@example.com",
++    ]) {
++      assert.throws(() =>
++        resolveAccountBuildConfig({ REMOTELYSAVE_WEBSITE: website })
++      );
++    }
++  });
++});
 diff --git a/tests/environmentRestore.test.ts b/tests/environmentRestore.test.ts
 new file mode 100644
 index 0000000..a2ebb08
@@ -1334,10 +1443,10 @@ index 0000000..a2ebb08
 +});
 diff --git a/tests/environmentWebdav.smoke.cjs b/tests/environmentWebdav.smoke.cjs
 new file mode 100644
-index 0000000..58a03af
+index 0000000..d53c9c1
 --- /dev/null
 +++ b/tests/environmentWebdav.smoke.cjs
-@@ -0,0 +1,269 @@
+@@ -0,0 +1,365 @@
 +// Run after `npm run build` or `npm run build2`. Exercise the production bundle against a
 +// temporary WebDAV server, with Obsidian's documented adapter/requestUrl boundary
 +// supplied by a small host stub. No personal vault or cloud account is accessed.
@@ -1429,6 +1538,7 @@ index 0000000..58a03af
 +    },
 +  };
 +  const originalLoad = Module._load;
++  const originalFetch = global.fetch;
 +  try {
 +    for (const [relative, content] of Object.entries(source)) {
 +      await put(cloud, `vault/.obsidian/${relative}`, content);
@@ -1443,6 +1553,10 @@ index 0000000..58a03af
 +    );
 +    await new Promise((resolve) => server.start(resolve));
 +    global.window = global;
++    global.moment = (value) => ({
++      format: () => new Date(value).toISOString(),
++      toISOString: () => new Date(value).toISOString(),
++    });
 +    global.document = new JSDOM(
 +      "<!doctype html><html><body></body></html>"
 +    ).window.document;
@@ -1468,7 +1582,7 @@ index 0000000..58a03af
 +    };
 +    const Plugin = require("../main.js").default;
 +    const plugin = new Plugin();
-+    plugin.manifest = { id: "remotely-save" };
++    plugin.manifest = { id: "remotely-save", version: "0.5.27" };
 +    plugin.i18n = { t: (key, vars) => `${key} ${JSON.stringify(vars ?? {})}` };
 +    const toLocalPath = (relative) => {
 +      const fullPath = path.resolve(device, relative);
@@ -1595,7 +1709,98 @@ index 0000000..58a03af
 +      );
 +    }
 +    assert.equal(saves, 4);
++
++    // Normal sync must also refresh an existing account before WebDAV runs.
++    // Fake only the account API; WebDAV still uses the real loopback server.
++    const accountRequests = [];
++    const newFeatures = [
++      {
++        featureName: "feature-smart_conflict",
++        expireAtTimeMs: Date.now() + 86400000,
++      },
++    ];
++    global.fetch = async (url, options) => {
++      if (url === "https://remotelysave.com/api/v1/oauth2/token") {
++        const body = new URLSearchParams(options.body);
++        assert.equal(body.get("refresh_token"), "test-refresh-token");
++        assert.ok(body.get("client_id").startsWith("cli-"));
++        accountRequests.push("refresh");
++        return new Response(
++          JSON.stringify({
++            access_token: "test-access-token",
++            expires_in: 3600,
++          })
++        );
++      }
++      if (url === "https://remotelysave.com/api/v1/pro/list") {
++        assert.equal(options.headers.Authorization, "Bearer test-access-token");
++        accountRequests.push("features");
++        return new Response(JSON.stringify({ proFeatures: newFeatures }));
++      }
++      assert.ok(
++        typeof url === "string" &&
++          url.startsWith(`http://127.0.0.1:${server.server.address().port}/`),
++        `Unexpected network destination in smoke test: ${url}`
++      );
++      return originalFetch(url, options);
++    };
++    const values = new Map();
++    const table = {
++      setItem: async (key, value) => {
++        values.set(key, value);
++        return value;
++      },
++      getItems: async () => ({}),
++    };
++    plugin.db = {
++      prevSyncRecordsTbl: table,
++      syncPlansTbl: table,
++      simpleKVForMiscTbl: table,
++    };
++    plugin.vaultRandomID = "test-vault";
++    plugin.app.vault.getAllLoadedFiles = () => [];
++    plugin.environmentRestartRequired = false;
++    plugin.settings = {
++      serviceType: "webdav",
++      password: "",
++      encryptionMethod: "rclone-base64",
++      conflictAction: "smart_conflict",
++      syncConfigDir: false,
++      webdav: {
++        address: `http://127.0.0.1:${server.server.address().port}`,
++        username: "",
++        password: "",
++        remoteBaseDir: "vault",
++        depth: "manual_1",
++        manualRecursive: true,
++      },
++      pro: {
++        accessToken: "",
++        accessTokenExpiresAtTimeMs: 0,
++        refreshToken: "test-refresh-token",
++        enabledProFeatures: [
++          { featureName: "feature-smart_conflict", expireAtTimeMs: 1 },
++        ],
++      },
++    };
++    await plugin.syncRun("dry");
++    assert.deepEqual(accountRequests, ["refresh", "features"]);
++    assert.equal(
++      values.has("test-vault-lastFailedSyncMillis"),
++      false,
++      "Dry sync must finish without an account/network failure"
++    );
++    assert.equal(values.has("test-vault-lastSuccessSyncMillis"), true);
++    assert.ok(
++      [...values.keys()].some((key) => key.startsWith("test-vault\t")),
++      "Dry sync must reach sync-plan generation"
++    );
++    assert.equal(plugin.isSyncing, false);
++    console.log(
++      "Production normal sync passed (expired account token, official endpoint, WebDAV dry run)"
++    );
 +  } finally {
++    global.fetch = originalFetch;
 +    Module._load = originalLoad;
 +    if (server.server?.listening)
 +      await new Promise((resolve) => server.stop(resolve));
@@ -1608,21 +1813,40 @@ index 0000000..58a03af
 +  process.exitCode = 1;
 +});
 diff --git a/versions.json b/versions.json
-index fa7ada6..6c2cae2 100644
+index fa7ada6..25f5ba8 100644
 --- a/versions.json
 +++ b/versions.json
-@@ -1,4 +1,5 @@
+@@ -1,4 +1,6 @@
  {
    "0.3.2": "0.12.15",
 -  "0.3.25": "0.13.21"
 +  "0.3.25": "0.13.21",
-+  "0.5.26": "0.13.21"
++  "0.5.26": "0.13.21",
++  "0.5.27": "0.13.21"
  }
 diff --git a/webpack.config.js b/webpack.config.js
-index 69cf370..fed1520 100644
+index 69cf370..40b394c 100644
 --- a/webpack.config.js
 +++ b/webpack.config.js
-@@ -30,6 +30,8 @@ module.exports = {
+@@ -2,12 +2,15 @@ require("dotenv").config();
+ const path = require("path");
+ const webpack = require("webpack");
+ const TerserPlugin = require("terser-webpack-plugin");
++const { resolveAccountBuildConfig } = require("./buildAccountConfig.cjs");
+ 
+ const DEFAULT_DROPBOX_APP_KEY = process.env.DROPBOX_APP_KEY || "";
+ const DEFAULT_ONEDRIVE_CLIENT_ID = process.env.ONEDRIVE_CLIENT_ID || "";
+ const DEFAULT_ONEDRIVE_AUTHORITY = process.env.ONEDRIVE_AUTHORITY || "";
+-const DEFAULT_REMOTELYSAVE_WEBSITE = process.env.REMOTELYSAVE_WEBSITE || "";
+-const DEFAULT_REMOTELYSAVE_CLIENT_ID = process.env.REMOTELYSAVE_CLIENT_ID || "";
++const {
++  website: DEFAULT_REMOTELYSAVE_WEBSITE,
++  clientId: DEFAULT_REMOTELYSAVE_CLIENT_ID,
++} = resolveAccountBuildConfig(process.env);
+ const DEFAULT_GOOGLEDRIVE_CLIENT_ID = process.env.GOOGLEDRIVE_CLIENT_ID || "";
+ const DEFAULT_GOOGLEDRIVE_CLIENT_SECRET =
+   process.env.GOOGLEDRIVE_CLIENT_SECRET || "";
+@@ -30,6 +33,8 @@ module.exports = {
      libraryTarget: "commonjs",
    },
    plugins: [

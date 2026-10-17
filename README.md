@@ -1,6 +1,6 @@
 # Remotely Save 使用环境同步更新
 
-本仓库保存基于 Remotely Save 0.5.25 开发的使用环境迁移更新。插件名称和 ID 保持原样，定制版版本号为 **0.5.26**。未提交 Obsidian 插件市场。
+本仓库保存基于 Remotely Save 0.5.25 开发的使用环境迁移更新。插件名称和 ID 保持原样，定制版版本号为 **0.5.27**。未提交 Obsidian 插件市场。
 
 ## 功能
 
@@ -11,6 +11,7 @@
 - 配置下载后提示重启，并暂停后续同步，避免内存中的旧设置被上传。
 - Remotely Save 自身的程序、连接配置、恢复备份及设备窗口布局留在本机。
 - 修复生产打包的手机端 Node 模块引用与动态分包问题。
+- **0.5.27 修复 Failed to fetch**：未设置构建环境变量时，补回官方账户服务地址和公开客户端标识，避免已有账户令牌过期时错误请求本地空路径。保持原账户与智能冲突设置。
 
 ## 文件
 
@@ -20,6 +21,7 @@
 | `device-local-pro-integration.patch` | 同步算法接入与回归测试的新增代码，仅含零上下文插入，不含原 Pro 源码 |
 | `environmentPaths.ts`、`environmentRestore.ts` | 新增模块的独立副本，供直接审阅；正确目录见补丁 |
 | `environmentRestore.test.ts`、`environmentWebdav.smoke.cjs` | 新增测试的独立副本 |
+| `buildAccountConfig.cjs`、`buildAccountConfig.test.ts` | 账户服务构建配置及其回归测试；正确目录见补丁 |
 | `baseline.json` | 对应上游提交、版本和验证范围 |
 | `NOTICE.txt`、`LICENSE` | 作者归属与许可范围 |
 
@@ -37,9 +39,9 @@
 
 ## 验证记录
 
-对本机完整集成版本执行过：80 项自动化测试、TypeScript 检查、webpack 和 esbuild 生产构建。最终生产包通过临时 WebDAV HTTP 服务测试，覆盖桌面/iOS 接口模拟、未加密及 OpenSSL 加密恢复，并检查加载及恢复无需桌面 Node 模块。
+对本机完整集成版本执行过：84 项自动化测试、TypeScript 检查、webpack 和 esbuild 生产构建。最终生产包通过临时 WebDAV HTTP 服务测试，覆盖桌面/iOS 接口模拟、未加密及 OpenSSL 加密恢复，并检查加载及恢复无需桌面 Node 模块。
 
-测试所用的上游 Git LFS 二进制样本按原始摘要验证后临时下载，没有包含在本仓库。尚未进行 iPhone 真机验收。
+测试所用的上游 Git LFS 二进制样本按原始摘要验证后临时下载，没有包含在本仓库。0.5.27 另增加了过期账户令牌刷新后执行 WebDAV 空跑同步的生产包回归测试，账户 API 使用模拟响应。Mac 本机的真实账户刷新、WebDAV 同步空跑及临时文件上传、覆盖、下载、清理检查已通过；未执行正式笔记同步。尚未进行 iPhone 真机验收。
 
 ## 范围
 

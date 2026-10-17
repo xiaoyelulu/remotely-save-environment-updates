@@ -1,14 +1,14 @@
 {
   "upstream": "https://github.com/remotely-save/remotely-save",
   "commit": "34db181af002f8d71ea0a87e7965abc57b294914",
-  "custom_plugin_version": "0.5.26",
+  "custom_plugin_version": "0.5.27",
   "publication": "Source updates only; no upstream Pro source or compiled plugin is included.",
   "patches": {
     "environment-sync-apache.patch": "Changes outside the upstream pro directory, including new modules.",
     "device-local-pro-integration.patch": "Newly authored insertions only, zero source context. Additional upstream authorization is needed before modifying Pro code."
   },
   "validation": {
-    "unit_tests_passed": 80,
+    "unit_tests_passed": 84,
     "production_builds": [
       "webpack",
       "esbuild"
@@ -17,8 +17,16 @@
       "desktop",
       "ios",
       "desktop-openssl",
-      "ios-openssl"
+      "ios-openssl",
+      "normal-sync-expired-account-token"
     ],
-    "iphone_hardware_verified": false
-  }
+    "iphone_hardware_verified": false,
+    "mac_live_verification": {
+      "account_refresh": "passed",
+      "webdav_sync_dry_run": "passed",
+      "temporary_file_upload_overwrite_download_cleanup": "passed",
+      "production_note_sync_performed": false
+    }
+  },
+  "bug_fix": "Use the official public account endpoint and client identifier when build environment variables are empty."
 }
