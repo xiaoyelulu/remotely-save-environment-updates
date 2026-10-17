@@ -1,0 +1,106 @@
+diff --git a/pro/src/sync.ts b/pro/src/sync.ts
+index d4bd9f6..5854dba 100644
+--- a/pro/src/sync.ts
++++ b/pro/src/sync.ts
+@@ -15,0 +16 @@
++import { isDeviceLocalConfigPath } from "../../src/environmentPaths";
+@@ -162,0 +164,11 @@
++  // Apply on both sides, including files uploaded by older plugin versions.
++  // An allow list must never overwrite the active sync plugin or device layout.
++  if (isDeviceLocalConfigPath(key, configDir)) {
++    return {
++      enableAllowMode: false,
++      isExplictlyAllowed: false,
++      isExplictlyIgnored: true,
++      finalIsIgnored: true,
++    };
++  }
++
+diff --git a/pro/tests/sync.test.ts b/pro/tests/sync.test.ts
+index ad703bf..6f561e4 100644
+--- a/pro/tests/sync.test.ts
++++ b/pro/tests/sync.test.ts
+@@ -4,0 +5,83 @@
++  it("syncs the full environment while preserving device-local config, even with an explicit allow rule", () => {
++    const allowed = [
++      ".obsidian/appearance.json",
++      ".obsidian/hotkeys.json",
++      ".obsidian/community-plugins.json",
++      ".obsidian/core-plugins.json",
++      ".obsidian/themes/Minimal/theme.css",
++      ".obsidian/snippets/custom.css",
++      ".obsidian/plugins/calendar/main.js",
++      ".obsidian/plugins/calendar/data.json",
++      ".obsidian/plugins/calendar/assets/.settings",
++    ];
++    const ignored = [
++      ".obsidian/plugins/remotely-save/",
++      ".obsidian/plugins/remotely-save/main.js",
++      ".obsidian/plugins/remotely-save/data.json",
++      ".obsidian/plugins/remotely-save/environment-backups/old/original/appearance.json",
++      ".obsidian/workspace.json",
++      ".obsidian/workspace-mobile.json",
++      ".obsidian/plugins/calendar/node_modules/something.js",
++      ".obsidian/.git/objects/xxx",
++    ];
++    for (const key of allowed) {
++      assert.equal(
++        checkIsSkipItemOrNotByName(key, true, false, false, ".obsidian", [], [])
++          .finalIsIgnored,
++        false,
++        key
++      );
++      assert.equal(
++        checkIsSkipItemOrNotByName(
++          key,
++          false,
++          false,
++          false,
++          ".obsidian",
++          [],
++          []
++        ).finalIsIgnored,
++        true,
++        key
++      );
++    }
++    for (const key of ignored) {
++      assert.equal(
++        checkIsSkipItemOrNotByName(
++          key,
++          true,
++          false,
++          true,
++          ".obsidian",
++          [],
++          [".*"]
++        ).finalIsIgnored,
++        true,
++        key
++      );
++    }
++    assert.equal(
++      checkIsSkipItemOrNotByName(
++        ".obsidian/appearance.json",
++        true,
++        false,
++        false,
++        ".obsidian",
++        ["appearance"],
++        []
++      ).finalIsIgnored,
++      true
++    );
++    assert.equal(
++      checkIsSkipItemOrNotByName(
++        ".obsidian/hotkeys.json",
++        true,
++        false,
++        false,
++        ".obsidian",
++        [],
++        ["^notes/"]
++      ).finalIsIgnored,
++      true
++    );
++  });

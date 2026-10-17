@@ -1,0 +1,1633 @@
+diff --git a/.gitignore b/.gitignore
+index 6300c50..1e961a9 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,6 +10,8 @@ pnpm-lock.yaml
+ # build
+ main.js
+ *.js.map
++dist/
++[0-9]*.main.js
+ 
+ # obsidian
+ data.json
+diff --git a/README.md b/README.md
+index cc62562..a5801af 100644
+--- a/README.md
++++ b/README.md
+@@ -184,11 +184,24 @@ See documents [here](./docs/pro/README.md)
+ 
+ ## Config Folder / Files and Bookmarks
+ 
+-By default, the plugin doesn't sync config folder / files of obsidian (normally `.obsidian` folder) because it's one of the hidden files. 
++Enable **Settings → Remotely Save → Advanced settings → Sync complete usage environment** to sync themes, CSS snippets, appearance (including font size and colors), hotkeys, editor/core plugin settings, bookmarks, installed community plugin programs/resources/settings, and the enabled-plugin list. This reuses the existing `syncConfigDir` option. Changes transfer on the next manual or scheduled sync. Path filters and size limits still apply; include the configuration directory in any allow list, and allow files large enough for plugin programs.
+ 
+-However, in the latest version, you can enable syncing config folder in settings. Please be aware that it's an experimental feature. Notably some config files' modified times are changed everytime when Obsidian is opened, and this destroys the assumptions of the plugin, so some information may not be synced properly.
++### Moving to a new device
+ 
+-Moreover, the bookmarks of Obsidian are actually stored in `.obsidian/bookmarks.json` file. You can also set syncing this file (instead of the whole config folder) in settings. The plugin will keep the latest modified one across devices.
++1. On the original device, install this version, enable complete usage environment sync, and finish a successful sync.
++2. On the new device, install this version of Remotely Save and connect to the same remote vault/directory (and encryption password/method). Use the existing settings import/QR features or configure the connection manually. The default remote directory depends on the vault name, so use the same vault name or explicitly set the same remote directory.
++3. **Before the first normal sync**, choose **Restore usage environment from cloud** in advanced settings or the command palette. The source config folder normally is `.obsidian`; it can be mapped into the new device's current config folder for this restore.
++4. Restore uses cloud settings regardless of newer local default timestamps. It downloads and checks all files, backs up matching local files, then applies them. Missing plugin programs prevent applying the restore. Extra local files are retained, including extra files in existing plugins.
++5. Restart Obsidian immediately (fully quit and reopen on iOS). Restore enables configuration sync; further syncs pause until restart to keep in-memory old settings from being uploaded. Normal syncs that download environment changes also request a restart and pause further syncs.
++6. Run a normal sync after restart to download notes and attachments. Use the same configuration folder name on each device for ongoing environment syncing; restoring between different names is a one-time mapping.
++
++### Backups and limits
++
++Restore stores replaced files in `<configDir>/plugins/remotely-save/environment-backups/<restore-id>/original/`. `journal.json` records original paths, timestamps and whether each destination previously existed; `staged/` holds downloaded files. Failed writes trigger rollback. If rollback fails, syncing pauses and the backup location is shown. For manual recovery, close Obsidian, copy `original/` back into the config directory, remove newly created files recorded in `journal.json`, and reopen the app.
++
++Remotely Save itself (program, connection credentials and local backups) stays on each device and is ignored even if older versions uploaded it. Other plugins' settings may contain credentials; enable end-to-end encryption if those need to remain private in cloud storage. Device layouts (`workspace.json` and `workspace-mobile.json`), version-control folders and `node_modules` are excluded. System fonts, permissions, application-wide settings outside the vault and externally stored plugin data are outside this feature's scope. Desktop-only plugins still cannot run on mobile.
++
++For bookmarks only, leave full environment sync disabled and enable bookmark sync separately.
+ 
+ ## Hidden Files Or Folders
+ 
+diff --git a/README.zh-cn.md b/README.zh-cn.md
+index 30f4034..24755fa 100644
+--- a/README.zh-cn.md
++++ b/README.zh-cn.md
+@@ -184,11 +184,31 @@ PRO（付费）功能“智能冲突”为用户提供了另一个选项：合
+ 
+ ## 配置文件夹/文件和书签
+ 
+-默认情况下，插件不同步 obsidian 的配置文件夹/文件（通常是 `.obsidian` 文件夹），因为它是隐藏文件之一。
++“同步完整使用环境”可以同步仓库内的以下内容：
+ 
+-然而，在最新版本中，你可以在设置中启用同步配置文件夹。请注意，这是一个实验性功能。特别是一些配置文件的修改时间每次 Obsidian 打开时都会改变，这破坏了插件的假设，因此某些信息可能无法正确同步。
++- 主题、CSS 片段、深浅配色、字号和外观设置；
++- 快捷键、编辑器设置、核心插件设置和书签；
++- 社区插件的程序、样式、资源文件、配置及启用列表。插件数量通过同步实际插件文件恢复，不需要逐个重新下载。
+ 
+-此外，Obsidian的书签实际上存储在 `.obsidian/bookmarks.json` 文件中的。你也可以在设置中设置同步这个文件（而不是整个配置文件夹）。插件将保持跨设备最新修改的文件。
++在 **设置 → Remotely Save → 高级设置 → 同步完整使用环境** 中启用。此选项沿用原来的 `syncConfigDir` 设置，旧配置仍然兼容。日常修改会在下一次手动或定时同步时传输。路径忽略规则、允许列表和文件大小限制仍然生效：若启用了允许列表，请包含配置文件夹，例如 `^\.obsidian/`；插件程序文件可能大于笔记，请检查大小限制。
++
++### 新设备迁移
++
++1. 在原设备安装此版本，开启“同步完整使用环境”，执行同步并确认成功。
++2. 在新设备创建或打开仓库，只需安装此版本的 Remotely Save。通过现有设置导入/二维码功能，或手动配置，连接同一远端仓库和目录；如果启用了端到端加密，还需要同一密码和加密方式。远端目录默认依赖仓库名称，请确保名称一致，或明确设置相同目录。
++3. **先不要执行普通同步**。进入高级设置，点击“从云端恢复完整使用环境”；也可以从命令面板执行同名命令。云端配置文件夹默认是当前配置文件夹（通常为 `.obsidian`），可指定原设备的名称。
++4. 恢复会直接使用云端版本，不会因为新设备默认配置的时间更新而改用默认设置。全部文件下载并检查后，才备份、替换本机文件；云端缺少必要的插件程序时会拒绝应用。额外的本地文件不会被删除，已有插件的额外配置也会保留。
++5. 完成后立即重启 Obsidian；iPhone/iPad 需彻底退出后重新打开。恢复会自动开启完整使用环境同步，重启前暂停后续同步，防止尚在内存中的旧设置反向上传。普通同步下载使用环境变更后也会提示重启并暂停同步。
++6. 重启后执行普通同步，下载笔记和附件。为了后续持续同步同一套环境，各设备应使用同名配置文件夹；从不同名称恢复只是一次性的目录映射。
++
++### 备份与范围
++
++- 恢复前的文件放在 `<配置目录>/plugins/remotely-save/environment-backups/<恢复编号>/original/`，`journal.json` 记录原路径、原修改时间和哪些文件原来不存在；`staged/` 保存已下载的配置。写入失败时会自动尝试回滚，回滚失败会显示备份路径并暂停同步。手工回滚时先关闭 Obsidian，将 `original/` 中的文件按相对路径复制回配置目录，并按照 `journal.json` 删除恢复时新建的文件，再重新打开。
++- Remotely Save 自身的程序、连接配置和本机备份不上传、不恢复；旧版曾上传的这些文件也会被忽略。新设备始终先安装并配置同步插件，避免覆盖正在使用的程序、凭据或加密参数。其他插件的配置可能包含账号或令牌，会随配置上传；需要云端保密时，请配置端到端加密。
++- 窗口与当前标签布局（`workspace.json`、`workspace-mobile.json`）、`.git`、`node_modules` 等设备或开发文件不参与迁移。
++- 仅迁移仓库配置目录中的设置。系统字体、系统权限、仓库外的应用级偏好、第三方插件存放在其他位置的数据不在范围内。桌面专用插件可复制到手机，但无法因此在手机运行；具体能否运行取决于插件的平台支持。
++
++若只想同步书签，可保持完整使用环境同步关闭，单独开启书签同步。
+ 
+ ## 隐藏文件或文件夹
+ 
+diff --git a/esbuild.config.mjs b/esbuild.config.mjs
+index 8796b80..7c961ea 100644
+--- a/esbuild.config.mjs
++++ b/esbuild.config.mjs
+@@ -32,6 +32,25 @@ const DEFAULT_YANDEXDISK_CLIENT_SECRET =
+ const DEFAULT_KOOFR_CLIENT_ID = process.env.KOOFR_CLIENT_ID || "";
+ const DEFAULT_KOOFR_CLIENT_SECRET = process.env.KOOFR_CLIENT_SECRET || "";
+ 
++// Match webpack's browser fallbacks. Leaving these as CommonJS externals makes
++// merely loading the plugin fail in Obsidian's mobile WebView.
++const browserNodeStubs = {
++  name: "browser-node-stubs",
++  setup(build) {
++    build.onResolve(
++      { filter: /^(?:node:)?(?:fs|tls|net|http|https|vm)$/ },
++      (args) => ({
++        path: args.path,
++        namespace: "browser-node-stub",
++      })
++    );
++    build.onLoad({ filter: /.*/, namespace: "browser-node-stub" }, () => ({
++      contents: "module.exports = {};",
++      loader: "js",
++    }));
++  },
++};
++
+ esbuild
+   .context({
+     banner: {
+@@ -45,15 +64,10 @@ esbuild
+     external: [
+       "obsidian",
+       "electron",
+-      "fs",
+-      "tls",
+-      "net",
+-      "http",
+-      "https",
+-      "vm",
+       // "process",
+       // ...builtins
+     ],
++    alias: { util: "util/" },
+     inject: ["./esbuild.injecthelper.mjs"],
+     format: "cjs",
+     // watch: !prod, // no longer valid in esbuild 0.17
+@@ -90,7 +104,7 @@ esbuild
+       // https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-util/src/checkEnvironment.ts
+       "globalThis.process.versions": `undefined`,
+     },
+-    plugins: [inlineWorkerPlugin()],
++    plugins: [browserNodeStubs, inlineWorkerPlugin()],
+   })
+   .then((context) => {
+     if (process.argv.includes("--watch")) {
+diff --git a/manifest-beta.json b/manifest-beta.json
+index 33b159f..88b833d 100644
+--- a/manifest-beta.json
++++ b/manifest-beta.json
+@@ -1,7 +1,7 @@
+ {
+   "id": "remotely-save",
+   "name": "Remotely Save",
+-  "version": "0.5.25",
++  "version": "0.5.26",
+   "minAppVersion": "0.13.21",
+   "description": "Yet another unofficial plugin allowing users to synchronize notes between local device and the cloud service.",
+   "author": "fyears",
+diff --git a/manifest.json b/manifest.json
+index 33b159f..88b833d 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "id": "remotely-save",
+   "name": "Remotely Save",
+-  "version": "0.5.25",
++  "version": "0.5.26",
+   "minAppVersion": "0.13.21",
+   "description": "Yet another unofficial plugin allowing users to synchronize notes between local device and the cloud service.",
+   "author": "fyears",
+diff --git a/package.json b/package.json
+index e0f2d57..0961cb3 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "remotely-save",
+-  "version": "0.5.25",
++  "version": "0.5.26",
+   "description": "This is yet another sync plugin for Obsidian app.",
+   "scripts": {
+     "dev2": "node esbuild.config.mjs --watch",
+@@ -9,7 +9,8 @@
+     "dev": "webpack --mode development --watch",
+     "format": "npx @biomejs/biome check --write .",
+     "clean": "npx rimraf main.js",
+-    "test": "mocha --import=tsx 'tests/**/*.ts' 'pro/tests/**/*.ts'"
++    "test": "mocha --import=tsx 'tests/**/*.ts' 'pro/tests/**/*.ts'",
++    "test:environment-webdav": "node tests/environmentWebdav.smoke.cjs"
+   },
+   "browser": {
+     "path": "path-browserify",
+@@ -34,7 +35,7 @@
+     "@types/mime-types": "^2.1.4",
+     "@types/mocha": "^10.0.7",
+     "@types/mustache": "^4.2.5",
+-    "@types/node": "^20.14.12",
++    "@types/node": "20.14.12",
+     "@types/qrcode": "^1.5.5",
+     "builtin-modules": "^4.0.0",
+     "cross-env": "^7.0.3",
+@@ -46,18 +47,19 @@
+     "npm-check-updates": "^16.14.20",
+     "obsidian": "^1.5.7",
+     "openapi-typescript": "^7.1.0",
++    "terser-webpack-plugin": "5.3.16",
+     "ts-loader": "^9.5.1",
+     "tslib": "^2.6.3",
+     "tsx": "^4.16.2",
+-    "typescript": "^5.5.4",
++    "typescript": "5.5.4",
+     "webdav-server": "^2.6.2",
+     "webpack": "^5.93.0",
+     "webpack-cli": "^5.1.4",
+     "worker-loader": "^3.0.8"
+   },
+   "dependencies": {
+-    "@aws-sdk/client-s3": "^3.620.0",
+-    "@aws-sdk/lib-storage": "^3.620.0",
++    "@aws-sdk/client-s3": "3.620.0",
++    "@aws-sdk/lib-storage": "3.620.0",
+     "@aws-sdk/signature-v4-crt": "^3.620.0",
+     "@aws-sdk/types": "^3.609.0",
+     "@azure/msal-node": "^2.12.0",
+@@ -87,9 +89,9 @@
+     "mime-types": "^2.1.35",
+     "mustache": "^4.2.0",
+     "nanoid": "^5.0.7",
+-    "node-diff3": "^3.1.2",
++    "node-diff3": "3.1.2",
+     "openapi-fetch": "^0.10.2",
+-    "p-queue": "^8.0.1",
++    "p-queue": "8.0.1",
+     "path-browserify": "^1.0.1",
+     "pcloud-sdk-js": "^2.0.0",
+     "process": "^0.11.10",
+@@ -101,5 +103,8 @@
+     "util": "^0.12.5",
+     "webdav": "^5.6.0",
+     "xregexp": "^5.1.1"
++  },
++  "overrides": {
++    "clean-stack": "5.2.0"
+   }
+ }
+diff --git a/src/environmentPaths.ts b/src/environmentPaths.ts
+new file mode 100644
+index 0000000..8d19e1b
+--- /dev/null
++++ b/src/environmentPaths.ts
+@@ -0,0 +1,47 @@
++import { isSpecialFolderNameToSkip } from "./misc";
++
++export const SYNC_PLUGIN_ID = "remotely-save";
++
++export const validateConfigDir = (configDir: string) => {
++  if (
++    !/^\.[^/\\]+$/.test(configDir) ||
++    configDir === "." ||
++    configDir === ".."
++  ) {
++    throw Error("Invalid Obsidian configuration folder");
++  }
++};
++
++/** These files belong to the running device, even when config sync is enabled. */
++export const isDeviceLocalConfigPath = (
++  key: string,
++  configDir: string,
++  pluginId = SYNC_PLUGIN_ID
++) => {
++  if (!key.startsWith(`${configDir}/`)) return false;
++  const relative = key.slice(configDir.length + 1).replace(/\/$/, "");
++  const parts = relative.split("/");
++  return (
++    relative === `plugins/${pluginId}` ||
++    relative.startsWith(`plugins/${pluginId}/`) ||
++    /^(workspace|workspace-mobile)(\.json)?$/.test(parts[0]) ||
++    parts.some((part) => isSpecialFolderNameToSkip(part, []))
++  );
++};
++
++/** Validate before using a remote path with the local adapter. */
++export const getEnvironmentRelativePath = (key: string, configDir: string) => {
++  if (!key.startsWith(`${configDir}/`)) return undefined;
++  const relative = key.slice(configDir.length + 1).replace(/\/$/, "");
++  if (relative === "") return undefined;
++  if (
++    relative.includes("\\") ||
++    relative.includes("\0") ||
++    relative
++      .split("/")
++      .some((part) => part === "" || part === "." || part === "..")
++  ) {
++    throw Error(`Invalid environment path: ${key}`);
++  }
++  return relative;
++};
+diff --git a/src/environmentRestore.ts b/src/environmentRestore.ts
+new file mode 100644
+index 0000000..6ac3c1f
+--- /dev/null
++++ b/src/environmentRestore.ts
+@@ -0,0 +1,203 @@
++import { nanoid } from "nanoid";
++import type { Vault } from "obsidian";
++import {
++  getEnvironmentRelativePath,
++  isDeviceLocalConfigPath,
++  validateConfigDir,
++} from "./environmentPaths";
++import type { FakeFs } from "./fsAll";
++import { mkdirpInVault } from "./misc";
++
++export class EnvironmentRestoreError extends Error {
++  constructor(
++    readonly code: "empty" | "invalid" | "incomplete" | "write" | "rollback",
++    readonly backupDir?: string
++  ) {
++    super(`Environment restore: ${code}`);
++  }
++}
++
++/**
++ * A deliberate cloud-to-device restore. A fresh installation's defaults must
++ * never win just because their timestamps are newer than the user's settings.
++ * Stage and validate everything, then back up all destinations before writing.
++ */
++export const restoreEnvironment = async (
++  vault: Vault,
++  remote: Pick<FakeFs, "walk" | "readFile">,
++  sourceConfigDir: string,
++  pluginId: string,
++  onProgress?: (done: number, total: number) => void
++) => {
++  validateConfigDir(sourceConfigDir);
++  validateConfigDir(vault.configDir);
++  const entities = await remote.walk();
++  const files = new Map<string, { key: string; mtime: number }>();
++  for (const entity of entities) {
++    const key = entity.key!;
++    const relative = getEnvironmentRelativePath(key, sourceConfigDir);
++    if (
++      relative === undefined ||
++      key.endsWith("/") ||
++      isDeviceLocalConfigPath(key, sourceConfigDir, pluginId)
++    )
++      continue;
++    if (files.has(relative)) throw new EnvironmentRestoreError("invalid");
++    files.set(relative, {
++      key,
++      mtime: entity.mtimeCli || entity.mtimeSvr || Date.now(),
++    });
++  }
++  if (files.size === 0) throw new EnvironmentRestoreError("empty");
++
++  const backupDir = `${vault.configDir}/plugins/${pluginId}/environment-backups/${Date.now()}-${nanoid(8)}`;
++  const adapter = vault.adapter;
++  const write = async (
++    path: string,
++    content: ArrayBuffer,
++    mtime?: number,
++    ctime?: number
++  ) => {
++    await mkdirpInVault(path, vault);
++    await adapter.writeBinary(path, content, { mtime, ctime });
++  };
++  const encode = (value: unknown) =>
++    new TextEncoder().encode(JSON.stringify(value, null, 2))
++      .buffer as ArrayBuffer;
++  const jsonFiles = new Map<string, unknown>();
++  let downloaded = 0;
++  for (const [relative, file] of files) {
++    const content = await remote.readFile(file.key);
++    if (
++      /^[^/]+\.json$/.test(relative) ||
++      /^plugins\/[^/]+\/manifest\.json$/.test(relative)
++    ) {
++      try {
++        const value: unknown = JSON.parse(new TextDecoder().decode(content));
++        if (value === null || typeof value !== "object")
++          throw Error("Invalid config object");
++        jsonFiles.set(relative, value);
++      } catch {
++        throw new EnvironmentRestoreError("invalid", backupDir);
++      }
++    }
++    await write(`${backupDir}/staged/${relative}`, content);
++    onProgress?.(++downloaded, files.size);
++  }
++
++  const pluginFolders = new Set<string>();
++  for (const relative of files.keys()) {
++    const pluginFolder = /^plugins\/([^/]+)\//.exec(relative)?.[1];
++    if (pluginFolder) pluginFolders.add(pluginFolder);
++    if (/^plugins\/[^/]+\/manifest\.json$/.test(relative)) {
++      const manifest = jsonFiles.get(relative) as { id?: unknown } | null;
++      if (typeof manifest?.id !== "string")
++        throw new EnvironmentRestoreError("invalid", backupDir);
++      if (!files.has(relative.replace(/manifest\.json$/, "main.js"))) {
++        throw new EnvironmentRestoreError("incomplete", backupDir);
++      }
++    }
++  }
++  for (const id of pluginFolders) {
++    if (
++      !files.has(`plugins/${id}/manifest.json`) ||
++      !files.has(`plugins/${id}/main.js`)
++    ) {
++      throw new EnvironmentRestoreError("incomplete", backupDir);
++    }
++  }
++  if (jsonFiles.has("community-plugins.json")) {
++    const enabled = jsonFiles.get("community-plugins.json");
++    if (
++      !Array.isArray(enabled) ||
++      !enabled.every((id) => typeof id === "string" && /^[^/\\.]+$/.test(id))
++    ) {
++      throw new EnvironmentRestoreError("invalid", backupDir);
++    }
++    for (const id of enabled) {
++      if (
++        id !== pluginId &&
++        (!files.has(`plugins/${id}/manifest.json`) ||
++          !files.has(`plugins/${id}/main.js`))
++      )
++        throw new EnvironmentRestoreError("incomplete", backupDir);
++    }
++    // Keep the user's bootstrap sync plugin enabled on the receiving device.
++    await write(
++      `${backupDir}/staged/community-plugins.json`,
++      encode([...new Set([...enabled, pluginId])])
++    );
++  }
++
++  const journal: {
++    relative: string;
++    existed: boolean;
++    mtime?: number;
++    ctime?: number;
++  }[] = [];
++  // Write the enabled list last, after every plugin's program and data are ready.
++  const paths = [...files.keys()].sort(
++    (a, b) =>
++      Number(a === "community-plugins.json") -
++        Number(b === "community-plugins.json") || a.localeCompare(b)
++  );
++  for (const relative of paths) {
++    const path = `${vault.configDir}/${relative}`;
++    const stat = await adapter.stat(path);
++    if (stat?.type === "folder")
++      throw new EnvironmentRestoreError("invalid", backupDir);
++    journal.push({
++      relative,
++      existed: stat != null,
++      mtime: stat?.mtime,
++      ctime: stat?.ctime,
++    });
++    if (stat != null)
++      await write(
++        `${backupDir}/original/${relative}`,
++        await adapter.readBinary(path)
++      );
++  }
++  await write(
++    `${backupDir}/journal.json`,
++    encode({ configDir: vault.configDir, files: journal })
++  );
++
++  const attempted: typeof journal = [];
++  try {
++    for (const entry of journal) {
++      attempted.push(entry); // Include the current file if an adapter partially writes then fails.
++      await write(
++        `${vault.configDir}/${entry.relative}`,
++        await adapter.readBinary(`${backupDir}/staged/${entry.relative}`),
++        files.get(entry.relative)!.mtime
++      );
++    }
++  } catch (error) {
++    console.error("Environment restore failed; restoring local backups", error);
++    let rollbackFailed = false;
++    for (const entry of attempted.reverse()) {
++      try {
++        const path = `${vault.configDir}/${entry.relative}`;
++        if (entry.existed) {
++          await write(
++            path,
++            await adapter.readBinary(`${backupDir}/original/${entry.relative}`),
++            entry.mtime,
++            entry.ctime
++          );
++        } else if (await adapter.exists(path)) {
++          await adapter.remove(path);
++        }
++      } catch (rollbackError) {
++        rollbackFailed = true;
++        console.error("Environment restore rollback failed", rollbackError);
++      }
++    }
++    throw new EnvironmentRestoreError(
++      rollbackFailed ? "rollback" : "write",
++      backupDir
++    );
++  }
++  return { fileCount: files.size, backupDir };
++};
+diff --git a/src/fsLocal.ts b/src/fsLocal.ts
+index ae7be28..5f4425c 100644
+--- a/src/fsLocal.ts
++++ b/src/fsLocal.ts
+@@ -2,6 +2,7 @@ import { DEFAULT_DEBUG_FOLDER, type Entity } from "./baseTypes";
+ import { FakeFs } from "./fsAll";
+ 
+ import { TFile, TFolder, type Vault } from "obsidian";
++import { isDeviceLocalConfigPath } from "./environmentPaths";
+ import { mkdirpInVault, statFix, unixTimeToStr } from "./misc";
+ import { listFilesInObsFolder } from "./obsFolderLister";
+ import type { Profiler } from "./profiler";
+@@ -15,6 +16,7 @@ export class FakeFsLocal extends FakeFs {
+   profiler: Profiler | undefined;
+   deleteToWhere: "obsidian" | "system";
+   kind: "local";
++  onConfigChanged?: () => void;
+   constructor(
+     vault: Vault,
+     syncConfigDir: boolean,
+@@ -22,7 +24,8 @@ export class FakeFsLocal extends FakeFs {
+     configDir: string,
+     pluginID: string,
+     profiler: Profiler | undefined,
+-    deleteToWhere: "obsidian" | "system"
++    deleteToWhere: "obsidian" | "system",
++    onConfigChanged?: () => void
+   ) {
+     super();
+ 
+@@ -34,6 +37,7 @@ export class FakeFsLocal extends FakeFs {
+     this.profiler = profiler;
+     this.deleteToWhere = deleteToWhere;
+     this.kind = "local";
++    this.onConfigChanged = onConfigChanged;
+   }
+ 
+   async walk(): Promise<Entity[]> {
+@@ -156,6 +160,7 @@ export class FakeFsLocal extends FakeFs {
+     mtime: number,
+     ctime: number
+   ): Promise<Entity> {
++    this.markConfigChanged(key);
+     await this.vault.adapter.writeBinary(key, content, {
+       mtime: mtime,
+       ctime: ctime,
+@@ -172,6 +177,7 @@ export class FakeFsLocal extends FakeFs {
+   }
+ 
+   async rm(key: string): Promise<void> {
++    this.markConfigChanged(key);
+     if (this.deleteToWhere === "obsidian") {
+       await this.vault.adapter.trashLocal(key);
+     } else {
+@@ -181,6 +187,14 @@ export class FakeFsLocal extends FakeFs {
+       }
+     }
+   }
++  private markConfigChanged(key: string) {
++    if (
++      key.startsWith(`${this.configDir}/`) &&
++      key !== `${this.configDir}/bookmarks.json` &&
++      !isDeviceLocalConfigPath(key, this.configDir, this.pluginID)
++    )
++      this.onConfigChanged?.();
++  }
+   async checkConnect(callbackFunc?: any): Promise<boolean> {
+     return true;
+   }
+diff --git a/src/langs/en.json b/src/langs/en.json
+index f580655..54c17d9 100644
+--- a/src/langs/en.json
++++ b/src/langs/en.json
+@@ -110,7 +110,7 @@
+   "modal_onedriverevokeauth_clean_button": "Clean",
+   "modal_onedriverevokeauth_clean_notice": "Cleaned!",
+   "modal_onedriverevokeauth_clean_fail": "Something goes wrong while revoking.",
+-  "modal_syncconfig_attn": "Attention 1/2: This only syncs (copies) the whole Obsidian config dir, not other starting-with-dot folders or files. Except for ignoring folders .git and node_modules, it also doesn't understand the meaning of sub-files and sub-folders inside the config dir.\nAttention 2/2: After the config dir is synced, plugins settings might be corrupted, and Obsidian might need to be restarted to load the new settings.\nIf you are agreed to take your own risk, please click the following second confirm button.",
++  "modal_syncconfig_attn": "This syncs your vault settings, appearance, hotkeys, themes, CSS snippets, installed plugins, enabled plugin lists, and plugin settings. It excludes the running Remotely Save plugin, its connection settings, device window layouts, version-control folders, and node_modules.\nOn a new device, use Restore usage environment from cloud before the first normal sync so newly generated defaults do not replace your existing preferences.\nSettings are copied as whole files. Restart Obsidian after downloading configuration changes. Plugins still need to support the receiving platform; system fonts and application-wide preferences outside the vault are not included.",
+   "modal_syncconfig_secondconfirm": "The Second Confirm To Enable.",
+   "modal_syncconfig_notice": "You've enabled syncing config folder!",
+   "modal_qr_shortdesc": "This exports (partial) settings.\nYou can use another device to scan this qrcode.\nOr, you can click the button to copy the special uri and paste it into another device's web browser or Remotely Save Import Setting.",
+@@ -282,8 +282,8 @@
+   "settings_concurrency_desc": "How many files do you want to download or upload in parallel at most? By default it's set to 5. If you meet any problems such as rate limit, you can reduce the concurrency to a lower value.",
+   "settings_syncunderscore": "Sync _ Files Or Folders",
+   "settings_syncunderscore_desc": "Sync files or folders starting with _ (\"underscore\") or not",
+-  "settings_configdir": "Sync Config Dir (experimental)",
+-  "settings_configdir_desc": "Sync config dir {{configDir}} or not (inner folder .git and node_modules would be ignored). Please be aware that this may impact all your plugins' or Obsidian's settings, and may require you restart Obsidian after sync. Enable this at your own risk.",
++  "settings_configdir": "Sync complete usage environment",
++  "settings_configdir_desc": "Sync themes, CSS snippets, appearance (font size and colors), hotkeys, installed and enabled plugins, and plugin settings in {{configDir}}. Apply downloaded changes by restarting Obsidian. Remotely Save itself, its credentials, and device window layouts stay local. Path filters and size limits still apply.",
+   "settings_bookmarks": "Sync Bookmarks (experimental)",
+   "settings_bookmarks_desc": "Sync {{configDir}}/bookmarks.json or not. If you sync config dir, this option will be ignore and treated as \"enabled\".",
+   "settings_deletetowhere": "Deletion Destination",
+@@ -382,5 +382,21 @@
+   "syncalgov3_button_agree": "Agree",
+   "syncalgov3_button_disagree": "Do Not Agree",
+ 
+-  "menu_check_file_stat": "Check file stats"
++  "menu_check_file_stat": "Check file stats",
++  "environment_restore": "Restore usage environment from cloud",
++  "environment_restore_setting_desc": "For a new device: connect to the same remote vault, then restore before your first normal sync. Downloads cloud settings even when this device has newer defaults, and backs up replaced files locally.",
++  "environment_restore_desc": "Use this on the receiving device after the original device has enabled complete usage environment sync and finished syncing. This replaces matching local settings with the cloud versions, including plugin programs, plugin settings, themes, appearance and hotkeys. All files are downloaded and checked before applying them; replaced local files are backed up. Extra local files are kept. Remotely Save and its connection settings stay local. Restart Obsidian immediately after restoring; further syncs are paused until then.",
++  "environment_source": "Cloud configuration folder",
++  "environment_source_desc": "The original device’s configuration folder, normally .obsidian. It will be restored into this device’s current configuration folder.",
++  "environment_busy": "A sync or environment restore is already running. Wait for it to finish.",
++  "environment_restoring": "Preparing to restore your usage environment…",
++  "environment_progress": "Downloading usage environment: {{done}} / {{total}}",
++  "environment_restart": "Usage environment files changed. Restart Obsidian to load themes, appearance, hotkeys and plugins. Further syncs are paused until restart. On iOS, fully quit and reopen the app.",
++  "environment_restored": "Restored {{count}} environment files. Local backups: {{backup}}. Restart Obsidian now (on iOS, fully quit and reopen). Further syncs are paused until restart.",
++  "environment_error_empty": "No usage environment was found. On the original device, enable complete usage environment sync and finish syncing. Check the remote vault and cloud configuration folder.",
++  "environment_error_invalid": "The cloud configuration contains invalid settings or a conflicting local path. No usage settings were applied. Check the source configuration. Download staging, if created: {{backup}}",
++  "environment_error_incomplete": "The cloud plugin files are incomplete. No usage settings were applied. Sync again on the original device and check path filters and file size limits. Download staging: {{backup}}",
++  "environment_error_write": "Restoring failed; replaced files were rolled back. Local backups: {{backup}}. Check free storage and permissions before retrying.",
++  "environment_error_rollback": "Restoring failed and some files could not be rolled back. Sync is paused. Recover files using the original folder and journal.json in {{backup}}, then restart Obsidian.",
++  "environment_error_generic": "Unable to restore the usage environment. Check the cloud connection, encryption password, configuration folder, free storage and permissions. See the console for details."
+ }
+diff --git a/src/langs/zh_cn.json b/src/langs/zh_cn.json
+index 8adf7da..8536d2d 100644
+--- a/src/langs/zh_cn.json
++++ b/src/langs/zh_cn.json
+@@ -110,7 +110,7 @@
+   "modal_onedriverevokeauth_clean_button": "清理",
+   "modal_onedriverevokeauth_clean_notice": "已清理！",
+   "modal_onedriverevokeauth_clean_fail": "鉴权途中出错了。",
+-  "modal_syncconfig_attn": "注意 1/2：此设置只同步（复制）整个 Obsidian 的配置文件夹，但是不会同步其它 . 开头的文件夹或文件。除了会忽略 .git 和 node_modules 文件夹之外，它也并不理解配置文件夹的里各个子文件或子文件夹的含义。\n注意 2/2：配置文件夹被同步之后，各插件的设置或许会出错，且 Obsidian 或许需要重启来重载各插件的新配置。\n如果您同意自行承受以上风险，您可以点击以下再次确认按钮。",
++  "modal_syncconfig_attn": "同步范围：仓库设置、外观、字号、配色、快捷键、主题、CSS 片段、已安装的插件、插件启用列表和插件配置。正在运行的 Remotely Save 及其连接配置、设备窗口布局、版本控制目录和 node_modules 保留在本机。\n新设备请在首次普通同步前使用“从云端恢复完整使用环境”，避免新设备刚生成的默认配置覆盖原有使用习惯。\n配置按整个文件同步。下载配置变更后请重启 Obsidian。插件仍须支持目标平台；系统字体、仓库外的应用级偏好不在同步范围内。",
+   "modal_syncconfig_secondconfirm": "再次确认开启",
+   "modal_syncconfig_notice": "您已开启配置文件夹的同步！",
+   "modal_qr_shortdesc": "这里可导出（部分）设置。\n您可以使用另一个设备来扫描此 QR 码。\n又或者，您可以点击以下按钮复制此特殊 URI，然后粘贴到另一台设备的网络浏览器或 Remotely Save 设置里的导入部分。",
+@@ -281,8 +281,8 @@
+   "settings_concurrency_desc": "您希望同时最多有多少个文件被上传和下载？默认值是 5。如果您遇到了一些问题（如访问频率限制），您可以减少并行度。",
+   "settings_syncunderscore": "同步 _ 文件或文件夹",
+   "settings_syncunderscore_desc": "是否同步“_”（下划线）开始的文件或文件夹。",
+-  "settings_configdir": "同步配置文件夹（实验性质）",
+-  "settings_configdir_desc": "是否同步 Obsidian 的配置文件夹 {{configDir}}（其中的 .git 和 node_modules 依然会被忽略）。请注意，此设置可能会影响到您 Obsidian 或者所有的插件设置，也可能需要您同步完毕后重启 Obsidian。如果您同意自行承受其风险，则可以开启本设置。",
++  "settings_configdir": "同步完整使用环境",
++  "settings_configdir_desc": "同步 {{configDir}} 中的主题、CSS 片段、外观（字号与配色）、快捷键、已安装及启用的插件和插件配置。下载配置后需重启 Obsidian。Remotely Save 自身及其连接配置、设备窗口布局保留在本机。路径过滤和文件大小限制仍然生效。",
+   "settings_bookmarks": "同步书签（实验性质）",
+   "settings_bookmarks_desc": "是否同步书签 {{configDir}}/bookmarks.json 。如果您设置了同步配置文件夹，此选项会被忽略并设为“开启”。",
+   "settings_deletetowhere": "删除文件到哪里",
+@@ -381,5 +381,21 @@
+   "syncalgov3_button_agree": "同意",
+   "syncalgov3_button_disagree": "不同意",
+ 
+-  "menu_check_file_stat": "查看文件属性"
++  "menu_check_file_stat": "查看文件属性",
++  "environment_restore": "从云端恢复完整使用环境",
++  "environment_restore_setting_desc": "新设备连接同一远端仓库后，在首次普通同步前使用。以云端配置覆盖本机默认设置，不比较新旧时间；替换前自动备份本机文件。",
++  "environment_restore_desc": "请先在原设备开启“同步完整使用环境”并完成同步，再在接收设备执行恢复。此操作将以云端版本替换对应的本机配置，包括插件程序、插件配置、主题、外观和快捷键。所有文件下载并校验完成后才写入；替换前备份本机文件。额外的本地文件保留。Remotely Save 自身和连接配置保留在本机。恢复后请立即重启 Obsidian；重启前暂停后续同步。",
++  "environment_source": "云端配置文件夹",
++  "environment_source_desc": "原设备的配置文件夹，通常为 .obsidian。恢复到本设备当前使用的配置文件夹中。",
++  "environment_busy": "正在同步或恢复使用环境，请等待完成。",
++  "environment_restoring": "正在准备恢复完整使用环境……",
++  "environment_progress": "正在下载使用环境：{{done}} / {{total}}",
++  "environment_restart": "使用环境文件已更新。请重启 Obsidian，加载主题、外观、快捷键和插件。重启前暂停后续同步。iPhone/iPad 请彻底退出后重新打开应用。",
++  "environment_restored": "已恢复 {{count}} 个使用环境文件。本机备份：{{backup}}。请立即重启 Obsidian（iPhone/iPad 请彻底退出后重新打开）；重启前暂停后续同步。",
++  "environment_error_empty": "云端没有使用环境文件。请先在原设备开启“同步完整使用环境”并完成同步，同时检查远端仓库及云端配置文件夹是否正确。",
++  "environment_error_invalid": "云端配置内容无效，或与本机目录冲突；尚未应用任何使用环境设置。请检查原设备配置。下载暂存位置（如已创建）：{{backup}}",
++  "environment_error_incomplete": "云端插件文件不完整，尚未应用任何使用环境设置。请在原设备重新同步，并检查忽略规则、允许列表及文件大小限制。下载暂存位置：{{backup}}",
++  "environment_error_write": "恢复失败，已回滚被替换的文件。本机备份：{{backup}}。请检查剩余空间和权限后重试。",
++  "environment_error_rollback": "恢复失败，部分文件未能回滚，已暂停同步。请根据 {{backup}} 中的 original 文件夹和 journal.json 恢复本机文件，然后重启 Obsidian。",
++  "environment_error_generic": "无法恢复使用环境。请检查云端连接、加密密码、配置文件夹、剩余空间和权限。详细原因见控制台。"
+ }
+diff --git a/src/langs/zh_tw.json b/src/langs/zh_tw.json
+index d374030..d079d14 100644
+--- a/src/langs/zh_tw.json
++++ b/src/langs/zh_tw.json
+@@ -280,8 +280,8 @@
+   "settings_concurrency_desc": "您希望同時最多有多少個檔案被上傳和下載？預設值是 5。如果您遇到了一些問題（如訪問頻率限制），您可以減少並行度。",
+   "settings_syncunderscore": "同步 _ 檔案或資料夾",
+   "settings_syncunderscore_desc": "是否同步“_”（下劃線）開始的檔案或資料夾。",
+-  "settings_configdir": "同步配置資料夾（實驗性質）",
+-  "settings_configdir_desc": "是否同步 Obsidian 的配置資料夾 {{configDir}}（其中的 .git 和 node_modules 依然會被忽略）。請注意，此設定可能會影響到您 Obsidian 或者所有的外掛設定，也可能需要您同步完畢後重啟 Obsidian。如果您同意自行承受其風險，則可以開啟本設定。",
++  "settings_configdir": "同步完整使用環境",
++  "settings_configdir_desc": "同步 {{configDir}} 中的主題、CSS 片段、外觀（字級與配色）、快捷鍵、已安裝及啟用的外掛和外掛設定。下載設定後需重新啟動 Obsidian。Remotely Save 本身及連線設定、裝置視窗配置保留在本機。路徑篩選與檔案大小限制仍生效。",
+   "settings_bookmarks": "同步書籤（實驗性質）",
+   "settings_bookmarks_desc": "是否同步書籤 {{configDir}}/bookmarks.json 。如果您設定了同步配置資料夾，此選項會被忽略並設為“開啟”。",
+   "settings_deletetowhere": "刪除檔案到哪裡",
+@@ -380,5 +380,21 @@
+   "syncalgov3_button_agree": "同意",
+   "syncalgov3_button_disagree": "不同意",
+ 
+-  "menu_check_file_stat": "檢視檔案屬性"
++  "menu_check_file_stat": "檢視檔案屬性",
++  "environment_restore": "從雲端還原完整使用環境",
++  "environment_restore_setting_desc": "新裝置連線至同一遠端儲存庫後，請在首次一般同步前使用。以雲端設定取代本機預設值，並先備份本機檔案。",
++  "environment_restore_desc": "請先在原裝置啟用完整使用環境同步並完成同步。還原將以雲端版本取代對應本機設定，包含外掛程式與設定、主題、外觀和快捷鍵。檔案全部下載及驗證後才套用，取代前先備份。額外本機檔案保留。Remotely Save 本身與連線設定留在本機。還原後請立即重新啟動 Obsidian，重新啟動前暫停同步。",
++  "environment_source": "雲端設定資料夾",
++  "environment_source_desc": "原裝置的設定資料夾，通常為 .obsidian。還原至本裝置目前的設定資料夾。",
++  "environment_busy": "正在同步或還原使用環境，請等待完成。",
++  "environment_restoring": "正在準備還原使用環境……",
++  "environment_progress": "正在下載使用環境：{{done}} / {{total}}",
++  "environment_restart": "使用環境已更新，請重新啟動 Obsidian 以載入主題、外觀、快捷鍵與外掛。重新啟動前暫停同步。iPhone/iPad 請完全結束應用程式後重新開啟。",
++  "environment_restored": "已還原 {{count}} 個使用環境檔案。本機備份：{{backup}}。請立即重新啟動 Obsidian；重新啟動前暫停同步。",
++  "environment_error_empty": "雲端沒有使用環境。請在原裝置啟用完整使用環境同步並完成同步，同時確認雲端設定資料夾。",
++  "environment_error_invalid": "雲端設定無效或與本機路徑衝突，尚未套用任何設定。下載暫存位置（若已建立）：{{backup}}",
++  "environment_error_incomplete": "雲端外掛檔案不完整，尚未套用設定。請在原裝置重新同步並檢查路徑篩選與檔案大小限制。暫存位置：{{backup}}",
++  "environment_error_write": "還原失敗，已復原被取代的檔案。備份：{{backup}}。請檢查儲存空間與權限。",
++  "environment_error_rollback": "還原失敗且部分檔案無法復原，已暫停同步。請依 {{backup}} 中的 original 資料夾與 journal.json 復原，再重新啟動。",
++  "environment_error_generic": "無法還原使用環境。請檢查雲端連線、加密密碼、設定資料夾、空間及權限。詳細原因見主控台。"
+ }
+diff --git a/src/main.ts b/src/main.ts
+index c174dd8..32f5763 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -76,6 +76,10 @@ import {
+ import { API_VER_ENSURE_REQURL_OK } from "./baseTypesObs";
+ import { messyConfigToNormal, normalConfigToMessy } from "./configPersist";
+ import { exportVaultSyncPlansToFiles } from "./debugMode";
++import {
++  EnvironmentRestoreError,
++  restoreEnvironment,
++} from "./environmentRestore";
+ import {
+   DEFAULT_DROPBOX_CONFIG,
+   sendAuthReq as sendAuthReqDropbox,
+@@ -109,7 +113,10 @@ import {
+ } from "./localdb";
+ import { changeMobileStatusBar } from "./misc";
+ import { DEFAULT_PROFILER_CONFIG, Profiler } from "./profiler";
+-import { RemotelySaveSettingTab } from "./settings";
++import {
++  RemotelySaveSettingTab,
++  openEnvironmentRestoreModal,
++} from "./settings";
+ import { SyncAlgoV3Modal } from "./syncAlgoV3Notice";
+ 
+ const DEFAULT_SETTINGS: RemotelySavePluginSettings = {
+@@ -230,8 +237,19 @@ export default class RemotelySavePlugin extends Plugin {
+   debugServerTemp?: string;
+   syncEvent?: Events;
+   appContainerObserver?: MutationObserver;
++  environmentRestartRequired = false;
+ 
+   async syncRun(triggerSource: SyncTriggerSourceType = "manual") {
++    if (this.environmentRestartRequired) {
++      if (triggerSource === "manual")
++        new Notice(this.i18n.t("environment_restart"), 15000);
++      return;
++    }
++    if (this.isSyncing) {
++      if (triggerSource === "manual")
++        new Notice(this.i18n.t("environment_busy"));
++      return;
++    }
+     let profiler: Profiler | undefined = undefined;
+     if (this.settings.profiler?.enable ?? false) {
+       profiler = new Profiler(
+@@ -240,6 +258,7 @@ export default class RemotelySavePlugin extends Plugin {
+         this.settings.profiler?.recordSize ?? false
+       );
+     }
++    let downloadedConfig = false;
+     const fsLocal = new FakeFsLocal(
+       this.app.vault,
+       this.settings.syncConfigDir ?? false,
+@@ -247,7 +266,10 @@ export default class RemotelySavePlugin extends Plugin {
+       this.app.vault.configDir,
+       this.manifest.id,
+       profiler,
+-      this.settings.deleteToWhere ?? "system"
++      this.settings.deleteToWhere ?? "system",
++      () => {
++        downloadedConfig = true;
++      }
+     );
+     const fsRemote = getClient(
+       this.settings,
+@@ -510,9 +532,81 @@ export default class RemotelySavePlugin extends Plugin {
+     fsEncrypt.closeResources();
+     (profiler as Profiler | undefined)?.clear();
+ 
++    if (downloadedConfig) {
++      this.environmentRestartRequired = true;
++      new Notice(this.i18n.t("environment_restart"), 20000);
++    }
+     this.syncEvent?.trigger("SYNC_DONE");
+   }
+ 
++  async restoreUsageEnvironment(sourceConfigDir: string) {
++    if (this.isSyncing || this.environmentRestartRequired) {
++      new Notice(
++        this.i18n.t(
++          this.environmentRestartRequired
++            ? "environment_restart"
++            : "environment_busy"
++        ),
++        15000
++      );
++      return;
++    }
++    this.isSyncing = true;
++    let fsEncrypt: FakeFsEncrypt | undefined;
++    const progress = new Notice(this.i18n.t("environment_restoring"), 0);
++    try {
++      const remote = getClient(
++        this.settings,
++        this.app.vault.getName(),
++        async () => this.saveSettings()
++      );
++      fsEncrypt = new FakeFsEncrypt(
++        remote,
++        this.settings.password ?? "",
++        this.settings.encryptionMethod ?? "rclone-base64"
++      );
++      const passwordCheck = await fsEncrypt.isPasswordOk();
++      if (!passwordCheck.ok) throw Error(passwordCheck.reason);
++      const result = await restoreEnvironment(
++        this.app.vault,
++        fsEncrypt,
++        sourceConfigDir,
++        this.manifest.id,
++        (done, total) =>
++          progress.setMessage(
++            this.i18n.t("environment_progress", {
++              done: `${done}`,
++              total: `${total}`,
++            })
++          )
++      );
++      this.settings.syncConfigDir = true;
++      this.environmentRestartRequired = true;
++      await this.saveSettings();
++      new Notice(
++        this.i18n.t("environment_restored", {
++          count: `${result.fileCount}`,
++          backup: result.backupDir,
++        }),
++        0
++      );
++    } catch (error) {
++      console.error("Unable to restore usage environment", error);
++      if (error instanceof EnvironmentRestoreError) {
++        // A failed rollback needs a restart/recovery before further syncs too.
++        if (error.code === "rollback") this.environmentRestartRequired = true;
++        const key = `environment_error_${error.code}` as TransItemType;
++        new Notice(this.i18n.t(key, { backup: error.backupDir ?? "" }), 20000);
++      } else {
++        new Notice(this.i18n.t("environment_error_generic"), 20000);
++      }
++    } finally {
++      progress.hide();
++      fsEncrypt?.closeResources();
++      this.isSyncing = false;
++    }
++  }
++
+   async onload() {
+     console.info(`loading plugin ${this.manifest.id}`);
+ 
+@@ -1227,6 +1321,12 @@ export default class RemotelySavePlugin extends Plugin {
+       },
+     });
+ 
++    this.addCommand({
++      id: "restore-usage-environment",
++      name: t("environment_restore"),
++      callback: () => openEnvironmentRestoreModal(this.app, this),
++    });
++
+     this.addCommand({
+       id: "export-sync-plans-1-only-change",
+       name: t("command_exportsyncplans_1_only_change"),
+diff --git a/src/obsFolderLister.ts b/src/obsFolderLister.ts
+index 42ead91..8e0ab88 100644
+--- a/src/obsFolderLister.ts
++++ b/src/obsFolderLister.ts
+@@ -4,32 +4,8 @@ import type { Entity } from "./baseTypes";
+ import { Queue } from "@fyears/tsqueue";
+ import chunk from "lodash/chunk";
+ import flatten from "lodash/flatten";
+-import { isSpecialFolderNameToSkip, statFix } from "./misc";
+-
+-const isPluginDirItself = (x: string, pluginId: string) => {
+-  return (
+-    x === pluginId ||
+-    x === `${pluginId}/` ||
+-    x.endsWith(`/${pluginId}`) ||
+-    x.endsWith(`/${pluginId}/`)
+-  );
+-};
+-
+-const isLikelyPluginSubFiles = (x: string) => {
+-  const reqFiles = [
+-    "data.json",
+-    "main.js",
+-    "manifest.json",
+-    ".gitignore",
+-    "styles.css",
+-  ];
+-  for (const iterator of reqFiles) {
+-    if (x === iterator || x.endsWith(`/${iterator}`)) {
+-      return true;
+-    }
+-  }
+-  return false;
+-};
++import { isDeviceLocalConfigPath } from "./environmentPaths";
++import { statFix } from "./misc";
+ 
+ export const listFilesInObsFolder = async (
+   configDir: string,
+@@ -90,28 +66,15 @@ export const listFilesInObsFolder = async (
+ 
+       for (const iter of r2) {
+         contents.push(iter.itself);
+-        const isInsideSelfPlugin = isPluginDirItself(iter.itself.key, pluginId);
+         if (iter.children !== undefined) {
+           for (const iter2 of iter.children.folders) {
+-            if (
+-              isSpecialFolderNameToSkip(iter2, ["workspace", "workspace.json"])
+-            ) {
+-              continue;
+-            }
+-            if (isInsideSelfPlugin && !isLikelyPluginSubFiles(iter2)) {
+-              // special treatment for remotely-save folder
++            if (isDeviceLocalConfigPath(iter2, configDir, pluginId)) {
+               continue;
+             }
+             q.push(iter2);
+           }
+           for (const iter2 of iter.children.files) {
+-            if (
+-              isSpecialFolderNameToSkip(iter2, ["workspace", "workspace.json"])
+-            ) {
+-              continue;
+-            }
+-            if (isInsideSelfPlugin && !isLikelyPluginSubFiles(iter2)) {
+-              // special treatment for remotely-save folder
++            if (isDeviceLocalConfigPath(iter2, configDir, pluginId)) {
+               continue;
+             }
+             q.push(iter2);
+diff --git a/src/settings.ts b/src/settings.ts
+index a29e468..dc69a3e 100644
+--- a/src/settings.ts
++++ b/src/settings.ts
+@@ -69,6 +69,35 @@ import {
+ } from "./misc";
+ import { DEFAULT_PROFILER_CONFIG } from "./profiler";
+ 
++export const openEnvironmentRestoreModal = (
++  app: App,
++  plugin: RemotelySavePlugin
++) => {
++  const modal = new Modal(app);
++  const t = (key: TransItemType) => plugin.i18n.t(key);
++  modal.titleEl.setText(t("environment_restore"));
++  modal.contentEl.createEl("p", { text: t("environment_restore_desc") });
++  let sourceConfigDir = app.vault.configDir;
++  new Setting(modal.contentEl)
++    .setName(t("environment_source"))
++    .setDesc(t("environment_source_desc"))
++    .addText((text) =>
++      text.setValue(sourceConfigDir).onChange((value) => {
++        sourceConfigDir = value.trim();
++      })
++    );
++  new Setting(modal.contentEl).addButton((button) => {
++    button
++      .setButtonText(t("environment_restore"))
++      .setCta()
++      .onClick(async () => {
++        modal.close();
++        await plugin.restoreUsageEnvironment(sourceConfigDir);
++      });
++  });
++  modal.open();
++};
++
+ class PasswordModal extends Modal {
+   plugin: RemotelySavePlugin;
+   newPassword: string;
+@@ -2276,6 +2305,15 @@ export class RemotelySaveSettingTab extends PluginSettingTab {
+       text: t("settings_adv"),
+     });
+ 
++    new Setting(advDiv)
++      .setName(t("environment_restore"))
++      .setDesc(t("environment_restore_setting_desc"))
++      .addButton((button) =>
++        button
++          .setButtonText(t("environment_restore"))
++          .onClick(() => openEnvironmentRestoreModal(this.app, this.plugin))
++      );
++
+     new Setting(advDiv)
+       .setName(t("settings_concurrency"))
+       .setDesc(t("settings_concurrency_desc"))
+diff --git a/tests/environmentRestore.test.ts b/tests/environmentRestore.test.ts
+new file mode 100644
+index 0000000..a2ebb08
+--- /dev/null
++++ b/tests/environmentRestore.test.ts
+@@ -0,0 +1,336 @@
++import { strict as assert } from "assert";
++import type { Vault } from "obsidian";
++import type { Entity } from "../src/baseTypes";
++import { isDeviceLocalConfigPath } from "../src/environmentPaths";
++import {
++  EnvironmentRestoreError,
++  restoreEnvironment,
++} from "../src/environmentRestore";
++import { listFilesInObsFolder } from "../src/obsFolderLister";
++
++const bytes = (text: string) =>
++  new TextEncoder().encode(text).buffer as ArrayBuffer;
++const text = (content: ArrayBuffer) => new TextDecoder().decode(content);
++
++class MemoryVault {
++  configDir = ".obsidian";
++  files = new Map<
++    string,
++    { content: ArrayBuffer; mtime: number; ctime: number }
++  >();
++  folders = new Set([".obsidian"]);
++  failWrite?: string;
++  failRead?: string;
++  writes: string[] = [];
++  put(path: string, value: string, mtime = 9000) {
++    this.files.set(path, { content: bytes(value), mtime, ctime: 100 });
++    const parts = path.split("/");
++    for (let i = 1; i < parts.length; i++)
++      this.folders.add(parts.slice(0, i).join("/"));
++  }
++  adapter = {
++    exists: async (path: string) =>
++      this.files.has(path) || this.folders.has(path),
++    mkdir: async (path: string) => {
++      this.folders.add(path);
++    },
++    stat: async (path: string) => {
++      const file = this.files.get(path);
++      if (file)
++        return {
++          type: "file",
++          mtime: file.mtime,
++          ctime: file.ctime,
++          size: file.content.byteLength,
++        };
++      return this.folders.has(path)
++        ? { type: "folder", mtime: 0, ctime: 0, size: 0 }
++        : null;
++    },
++    list: async (path: string) => {
++      const isChild = (p: string) =>
++        p.startsWith(`${path}/`) && !p.slice(path.length + 1).includes("/");
++      return {
++        files: [...this.files.keys()].filter(isChild),
++        folders: [...this.folders].filter(isChild),
++      };
++    },
++    readBinary: async (path: string) => {
++      if (path === this.failRead) throw Error("simulated backup read failure");
++      const file = this.files.get(path);
++      if (!file) throw Error(`missing ${path}`);
++      return file.content.slice(0);
++    },
++    writeBinary: async (
++      path: string,
++      content: ArrayBuffer,
++      options?: { mtime?: number; ctime?: number }
++    ) => {
++      this.writes.push(path);
++      this.files.set(path, {
++        content: content.slice(0),
++        mtime: options?.mtime ?? 10000,
++        ctime: options?.ctime ?? 10000,
++      });
++      if (path === this.failWrite) {
++        this.failWrite = undefined; // Simulate partial write, then allow rollback.
++        throw Error("simulated disk failure");
++      }
++    },
++    remove: async (path: string) => {
++      this.files.delete(path);
++    },
++  };
++  asVault() {
++    return this as unknown as Vault;
++  }
++  get(path: string) {
++    return text(this.files.get(path)!.content);
++  }
++}
++
++const remote = (contents: Record<string, string>, failRead?: string) => ({
++  walk: async (): Promise<Entity[]> =>
++    Object.entries(contents).map(([key, value]) => ({
++      key,
++      keyRaw: key,
++      sizeRaw: bytes(value).byteLength,
++      size: bytes(value).byteLength,
++      mtimeCli: 1000,
++    })),
++  readFile: async (key: string) => {
++    if (key === failRead) throw Error("simulated network failure");
++    return bytes(contents[key]);
++  },
++});
++
++describe("Complete usage environment", () => {
++  it("restores cloud preferences over newer defaults, themes, snippets, hotkeys, plugin programs and data", async () => {
++    const local = new MemoryVault();
++    local.put(".obsidian/appearance.json", '{"baseFontSize":16}');
++    local.put(
++      ".obsidian/plugins/remotely-save/data.json",
++      "device credentials"
++    );
++    local.put(
++      ".obsidian/plugins/remotely-save/main.js",
++      "installed sync version"
++    );
++    const contents = {
++      ".obsidian/app.json": '{"vimMode":true}',
++      ".obsidian/appearance.json":
++        '{"baseFontSize":22,"theme":"obsidian","cssTheme":"Minimal"}',
++      ".obsidian/hotkeys.json":
++        '{"app:go-back":[{"modifiers":["Mod"],"key":"B"}]}',
++      ".obsidian/core-plugins.json": '["backlink","graph"]',
++      ".obsidian/community-plugins.json": '["calendar"]',
++      ".obsidian/themes/Minimal/theme.css": "body {color: red}",
++      ".obsidian/themes/Minimal/manifest.json": '{"name":"Minimal"}',
++      ".obsidian/snippets/my-style.css": "body {font-size:22px}",
++      ".obsidian/plugins/calendar/manifest.json":
++        '{"id":"calendar","isDesktopOnly":false}',
++      ".obsidian/plugins/calendar/main.js": "calendar program",
++      ".obsidian/plugins/calendar/data.json": '{"weekStart":1}',
++      ".obsidian/plugins/calendar/assets/icon.svg": "<svg />",
++      ".obsidian/plugins/remotely-save/data.json": "other device credentials",
++      ".obsidian/plugins/remotely-save/main.js": "old sync version",
++      ".obsidian/workspace.json": "other device window layout",
++      ".obsidian/workspace-mobile.json": "other device mobile layout",
++      "notes/hello.md": "note untouched by environment restore",
++    };
++    const result = await restoreEnvironment(
++      local.asVault(),
++      remote(contents),
++      ".obsidian",
++      "remotely-save"
++    );
++    assert.equal(
++      local.get(".obsidian/appearance.json"),
++      contents[".obsidian/appearance.json"]
++    );
++    assert.equal(local.files.get(".obsidian/appearance.json")!.mtime, 1000);
++    assert.equal(
++      local.get(".obsidian/plugins/calendar/data.json"),
++      '{"weekStart":1}'
++    );
++    assert.equal(
++      local.get(".obsidian/plugins/calendar/assets/icon.svg"),
++      "<svg />"
++    );
++    assert.deepEqual(
++      JSON.parse(local.get(".obsidian/community-plugins.json")),
++      ["calendar", "remotely-save"]
++    );
++    assert.equal(
++      local.get(".obsidian/plugins/remotely-save/data.json"),
++      "device credentials"
++    );
++    assert.equal(
++      local.get(".obsidian/plugins/remotely-save/main.js"),
++      "installed sync version"
++    );
++    assert.equal(
++      local.get(`${result.backupDir}/original/appearance.json`),
++      '{"baseFontSize":16}'
++    );
++    assert.ok(!local.files.has(".obsidian/workspace.json"));
++    assert.ok(!local.files.has("notes/hello.md"));
++    assert.equal(result.fileCount, 12);
++    assert.equal(
++      local.writes.filter((p) => !p.startsWith(result.backupDir)).slice(-1)[0],
++      ".obsidian/community-plugins.json"
++    );
++  });
++
++  it("maps a source config folder to a different device config folder", async () => {
++    const local = new MemoryVault();
++    local.configDir = ".obsidian-mobile";
++    await restoreEnvironment(
++      local.asVault(),
++      remote({ ".obsidian/hotkeys.json": "{}" }),
++      ".obsidian",
++      "remotely-save"
++    );
++    assert.equal(local.get(".obsidian-mobile/hotkeys.json"), "{}");
++    assert.ok(!local.files.has(".obsidian/hotkeys.json"));
++  });
++
++  it("does not change settings when download or backup fails", async () => {
++    for (const failure of ["network", "backup"]) {
++      const local = new MemoryVault();
++      local.put(".obsidian/app.json", '{"vimMode":false}');
++      if (failure === "backup") local.failRead = ".obsidian/app.json";
++      await assert.rejects(
++        restoreEnvironment(
++          local.asVault(),
++          remote(
++            {
++              ".obsidian/app.json": '{"vimMode":true}',
++              ".obsidian/appearance.json": "{}",
++            },
++            failure === "network" ? ".obsidian/appearance.json" : undefined
++          ),
++          ".obsidian",
++          "remotely-save"
++        )
++      );
++      assert.equal(local.get(".obsidian/app.json"), '{"vimMode":false}');
++      assert.ok(!local.files.has(".obsidian/appearance.json"));
++    }
++  });
++
++  it("rolls back partial writes and removes newly created files", async () => {
++    const local = new MemoryVault();
++    local.put(".obsidian/app.json", '{"vimMode":false}');
++    local.failWrite = ".obsidian/hotkeys.json";
++    await assert.rejects(
++      restoreEnvironment(
++        local.asVault(),
++        remote({
++          ".obsidian/app.json": '{"vimMode":true}',
++          ".obsidian/appearance.json": "{}",
++          ".obsidian/hotkeys.json": "{}",
++        }),
++        ".obsidian",
++        "remotely-save"
++      ),
++      (e: unknown) => e instanceof EnvironmentRestoreError && e.code === "write"
++    );
++    assert.equal(local.get(".obsidian/app.json"), '{"vimMode":false}');
++    assert.equal(local.files.get(".obsidian/app.json")!.mtime, 9000);
++    assert.ok(!local.files.has(".obsidian/appearance.json"));
++    assert.ok(!local.files.has(".obsidian/hotkeys.json"));
++  });
++
++  it("rejects invalid JSON, incomplete plugin programs, and missing enabled plugins before applying", async () => {
++    for (const contents of [
++      { ".obsidian/appearance.json": "{" },
++      { ".obsidian/community-plugins.json": '["missing"]' },
++      { ".obsidian/community-plugins.json": "{}" },
++      { ".obsidian/plugins/calendar/manifest.json": '{"id":"calendar"}' },
++    ] as Record<string, string>[]) {
++      const local = new MemoryVault();
++      local.put(".obsidian/appearance.json", "{}");
++      await assert.rejects(
++        restoreEnvironment(
++          local.asVault(),
++          remote(contents),
++          ".obsidian",
++          "remotely-save"
++        ),
++        EnvironmentRestoreError
++      );
++      assert.equal(local.get(".obsidian/appearance.json"), "{}");
++      assert.ok(local.writes.every((p) => p.includes("/environment-backups/")));
++    }
++  });
++
++  it("rejects traversal and empty cloud environments without modifying local files", async () => {
++    for (const key of [
++      ".obsidian/../note.md",
++      ".obsidian/plugins/../../note.md",
++      ".obsidian/a\\b",
++      "notes/hello.md",
++    ]) {
++      const local = new MemoryVault();
++      await assert.rejects(
++        restoreEnvironment(
++          local.asVault(),
++          remote({ [key]: "bad" }),
++          ".obsidian",
++          "remotely-save"
++        )
++      );
++      assert.equal(local.files.size, 0);
++    }
++    const local = new MemoryVault();
++    await assert.rejects(
++      restoreEnvironment(
++        local.asVault(),
++        remote({}),
++        "../other",
++        "remotely-save"
++      )
++    );
++    assert.equal(local.files.size, 0);
++  });
++
++  it("lists the whole environment while excluding sync credentials, backups and device layouts", async () => {
++    const local = new MemoryVault();
++    for (const path of [
++      ".obsidian/appearance.json",
++      ".obsidian/hotkeys.json",
++      ".obsidian/plugins/other/data.json",
++      ".obsidian/plugins/other/main.js",
++      ".obsidian/plugins/other/assets/icon.svg",
++      ".obsidian/themes/Minimal/theme.css",
++      ".obsidian/plugins/remotely-save/data.json",
++      ".obsidian/plugins/remotely-save/environment-backups/old/original/app.json",
++      ".obsidian/workspace.json",
++      ".obsidian/workspace-mobile.json",
++      ".obsidian/plugins/other/node_modules/a.js",
++    ])
++      local.put(path, "content");
++    const keys = (
++      await listFilesInObsFolder(
++        ".obsidian",
++        local.asVault(),
++        "remotely-save",
++        false
++      )
++    ).map((e) => e.key);
++    assert.ok(keys.includes(".obsidian/plugins/other/assets/icon.svg"));
++    assert.ok(keys.includes(".obsidian/themes/Minimal/theme.css"));
++    assert.ok(!keys.some((k) => isDeviceLocalConfigPath(k!, ".obsidian")));
++    const bookmarks = await listFilesInObsFolder(
++      ".obsidian",
++      local.asVault(),
++      "remotely-save",
++      true
++    );
++    assert.deepEqual(
++      bookmarks.map((e) => e.key),
++      [".obsidian/"]
++    );
++  });
++});
+diff --git a/tests/environmentWebdav.smoke.cjs b/tests/environmentWebdav.smoke.cjs
+new file mode 100644
+index 0000000..58a03af
+--- /dev/null
++++ b/tests/environmentWebdav.smoke.cjs
+@@ -0,0 +1,269 @@
++// Run after `npm run build` or `npm run build2`. Exercise the production bundle against a
++// temporary WebDAV server, with Obsidian's documented adapter/requestUrl boundary
++// supplied by a small host stub. No personal vault or cloud account is accessed.
++const assert = require("node:assert/strict");
++const fs = require("node:fs/promises");
++const os = require("node:os");
++const path = require("node:path");
++const Module = require("node:module");
++const { v2: webdav } = require("webdav-server");
++const { JSDOM } = require("jsdom");
++const { randomBytes, pbkdf2Sync, createCipheriv } = require("node:crypto");
++
++async function main() {
++  const root = await fs.mkdtemp(
++    path.join(os.tmpdir(), "remotely-save-webdav-")
++  );
++  const cloud = path.join(root, "cloud");
++  const device = path.join(root, "device");
++  const messages = [];
++  let requests = 0;
++  let ios = false;
++  const server = new webdav.WebDAVServer({
++    port: 0,
++    hostname: "127.0.0.1",
++    requireAuthentification: false,
++  });
++  const put = async (base, relative, content) => {
++    const fullPath = path.join(base, relative);
++    await fs.mkdir(path.dirname(fullPath), { recursive: true });
++    await fs.writeFile(fullPath, content);
++  };
++  const source = {
++    "appearance.json": '{"baseFontSize":23,"cssTheme":"Minimal"}',
++    "hotkeys.json": '{"app:go-back":[{"modifiers":["Mod"],"key":"B"}]}',
++    "community-plugins.json": '["calendar","remotely-save"]',
++    "plugins/calendar/main.js": "// test plugin program",
++    "plugins/calendar/manifest.json": '{"id":"calendar","isDesktopOnly":false}',
++    "plugins/calendar/data.json": '{"weekStart":1}',
++    "themes/Minimal/theme.css": "body {color: purple}",
++    "plugins/remotely-save/data.json": "credentials from another device",
++    "workspace-mobile.json": "other-device-layout",
++  };
++  const encrypt = (value) => {
++    const salt = randomBytes(8);
++    const keyAndIv = pbkdf2Sync("test-password", salt, 20000, 48, "sha256");
++    const cipher = createCipheriv(
++      "aes-256-cbc",
++      keyAndIv.subarray(0, 32),
++      keyAndIv.subarray(32)
++    );
++    return Buffer.concat([
++      Buffer.from("Salted__"),
++      salt,
++      cipher.update(value),
++      cipher.final(),
++    ]);
++  };
++  const notices = class {
++    constructor(message) {
++      messages.push(message);
++    }
++    setMessage() {}
++    hide() {}
++  };
++  const host = {
++    Plugin: class {},
++    Modal: class {},
++    PluginSettingTab: class {},
++    Events: class {},
++    FileSystemAdapter: class {},
++    Notice: notices,
++    Platform: {
++      get isIosApp() {
++        return ios;
++      },
++      isAndroidApp: false,
++    },
++    requireApiVersion: () => true,
++    requestUrl: async ({ url, method, body, headers }) => {
++      requests++;
++      const response = await fetch(url, { method, body, headers });
++      const arrayBuffer = await response.arrayBuffer();
++      return {
++        status: response.status,
++        headers: Object.fromEntries(response.headers),
++        arrayBuffer,
++        text: new TextDecoder().decode(arrayBuffer),
++      };
++    },
++  };
++  const originalLoad = Module._load;
++  try {
++    for (const [relative, content] of Object.entries(source)) {
++      await put(cloud, `vault/.obsidian/${relative}`, content);
++      await put(
++        cloud,
++        `encrypted/${encrypt(`.obsidian/${relative}`).toString("base64url")}`,
++        encrypt(content)
++      );
++    }
++    await new Promise((resolve) =>
++      server.setFileSystem("/", new webdav.PhysicalFileSystem(cloud), resolve)
++    );
++    await new Promise((resolve) => server.start(resolve));
++    global.window = global;
++    global.document = new JSDOM(
++      "<!doctype html><html><body></body></html>"
++    ).window.document;
++    global.DOMParser = document.defaultView.DOMParser;
++    for (const name of [
++      "Node",
++      "Element",
++      "HTMLElement",
++      "DocumentFragment",
++      "Text",
++      "XMLSerializer",
++    ]) {
++      global[name] = document.defaultView[name];
++    }
++    Module._load = function (request, ...args) {
++      if (request === "obsidian") return host;
++      if (args[0]?.filename === path.resolve(__dirname, "../main.js")) {
++        throw Error(
++          `Production plugin requested a desktop-only module: ${request}`
++        );
++      }
++      return originalLoad.call(this, request, ...args);
++    };
++    const Plugin = require("../main.js").default;
++    const plugin = new Plugin();
++    plugin.manifest = { id: "remotely-save" };
++    plugin.i18n = { t: (key, vars) => `${key} ${JSON.stringify(vars ?? {})}` };
++    const toLocalPath = (relative) => {
++      const fullPath = path.resolve(device, relative);
++      assert.ok(fullPath.startsWith(`${device}/`));
++      return fullPath;
++    };
++    plugin.app = {
++      vault: {
++        configDir: ".obsidian",
++        getName: () => "vault",
++        adapter: {
++          exists: async (p) =>
++            fs.access(toLocalPath(p)).then(
++              () => true,
++              () => false
++            ),
++          mkdir: async (p) => fs.mkdir(toLocalPath(p)),
++          stat: async (p) => {
++            try {
++              const stat = await fs.stat(toLocalPath(p));
++              return {
++                type: stat.isDirectory() ? "folder" : "file",
++                mtime: stat.mtimeMs,
++                ctime: stat.ctimeMs,
++                size: stat.size,
++              };
++            } catch (error) {
++              if (error.code === "ENOENT") return null;
++              throw error;
++            }
++          },
++          readBinary: async (p) => {
++            const buffer = await fs.readFile(toLocalPath(p));
++            return buffer.buffer.slice(
++              buffer.byteOffset,
++              buffer.byteOffset + buffer.byteLength
++            );
++          },
++          writeBinary: async (p, content, options) => {
++            await fs.writeFile(toLocalPath(p), Buffer.from(content));
++            if (options?.mtime)
++              await fs.utimes(
++                toLocalPath(p),
++                new Date(),
++                new Date(options.mtime)
++              );
++          },
++          remove: async (p) => fs.unlink(toLocalPath(p)),
++        },
++      },
++    };
++    let saves = 0;
++    plugin.saveSettings = async () => {
++      saves++;
++    };
++    for (const platform of [
++      "desktop",
++      "ios",
++      "desktop-encrypted",
++      "ios-encrypted",
++    ]) {
++      ios = platform.startsWith("ios");
++      const encrypted = platform.endsWith("encrypted");
++      plugin.environmentRestartRequired = false;
++      plugin.settings = {
++        serviceType: "webdav",
++        password: encrypted ? "test-password" : "",
++        encryptionMethod: encrypted ? "openssl-base64" : "rclone-base64",
++        webdav: {
++          address: `http://127.0.0.1:${server.server.address().port}`,
++          username: "",
++          password: "",
++          remoteBaseDir: encrypted ? "encrypted" : "vault",
++          depth: "manual_1",
++          manualRecursive: true,
++        },
++      };
++      await put(device, ".obsidian/appearance.json", '{"baseFontSize":16}');
++      await put(
++        device,
++        ".obsidian/plugins/remotely-save/data.json",
++        "device credentials"
++      );
++      const countBefore = requests;
++      await plugin.restoreUsageEnvironment(".obsidian");
++      assert.ok(
++        requests > countBefore,
++        "Production WebDAV client must make real HTTP requests"
++      );
++      assert.equal(
++        await fs.readFile(
++          path.join(device, ".obsidian/appearance.json"),
++          "utf8"
++        ),
++        source["appearance.json"]
++      );
++      assert.equal(
++        await fs.readFile(path.join(device, ".obsidian/hotkeys.json"), "utf8"),
++        source["hotkeys.json"]
++      );
++      assert.equal(
++        await fs.readFile(
++          path.join(device, ".obsidian/plugins/calendar/data.json"),
++          "utf8"
++        ),
++        source["plugins/calendar/data.json"]
++      );
++      assert.equal(
++        await fs.readFile(
++          path.join(device, ".obsidian/plugins/remotely-save/data.json"),
++          "utf8"
++        ),
++        "device credentials"
++      );
++      assert.equal(plugin.settings.syncConfigDir, true);
++      assert.equal(plugin.environmentRestartRequired, true);
++      assert.equal(plugin.isSyncing, false);
++      assert.ok(messages.some((m) => m.startsWith("environment_restored")));
++      const afterRestore = requests;
++      await plugin.syncRun("manual");
++      assert.equal(requests, afterRestore, "Sync must pause until restart");
++      console.log(
++        `Production WebDAV restore passed (${platform} host boundary)`
++      );
++    }
++    assert.equal(saves, 4);
++  } finally {
++    Module._load = originalLoad;
++    if (server.server?.listening)
++      await new Promise((resolve) => server.stop(resolve));
++    await fs.rm(root, { recursive: true, force: true });
++  }
++}
++
++main().catch((error) => {
++  console.error(error);
++  process.exitCode = 1;
++});
+diff --git a/versions.json b/versions.json
+index fa7ada6..6c2cae2 100644
+--- a/versions.json
++++ b/versions.json
+@@ -1,4 +1,5 @@
+ {
+   "0.3.2": "0.12.15",
+-  "0.3.25": "0.13.21"
++  "0.3.25": "0.13.21",
++  "0.5.26": "0.13.21"
+ }
+diff --git a/webpack.config.js b/webpack.config.js
+index 69cf370..fed1520 100644
+--- a/webpack.config.js
++++ b/webpack.config.js
+@@ -30,6 +30,8 @@ module.exports = {
+     libraryTarget: "commonjs",
+   },
+   plugins: [
++    // Obsidian installs one main.js; optional SDK imports must stay in it too.
++    new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }),
+     new webpack.DefinePlugin({
+       "global.DEFAULT_DROPBOX_APP_KEY": `"${DEFAULT_DROPBOX_APP_KEY}"`,
+       "global.DEFAULT_ONEDRIVE_CLIENT_ID": `"${DEFAULT_ONEDRIVE_CLIENT_ID}"`,

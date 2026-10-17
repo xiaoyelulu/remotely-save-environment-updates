@@ -1,0 +1,18 @@
+Remotely Save environment synchronization updates
+
+Based on Remotely Save by fyears and its contributors:
+https://github.com/remotely-save/remotely-save
+Upstream baseline: 34db181af002f8d71ea0a87e7965abc57b294914
+
+The upstream project uses multiple licenses. Its src/, tests/, docs/, assets/
+are described by upstream as Apache-2.0. Its pro/ directory is separately
+licensed under PolyForm Strict 1.0.0.
+
+This repository does not include upstream Pro source or any compiled plugin.
+The separate Pro integration patch contains only newly authored additions
+with no original source context. It does not grant rights to modify or
+redistribute upstream Pro code. Obtain any necessary additional permission
+from its rightsholder before doing so.
+
+The bundled Apache-2.0 license covers the new code and Apache-licensed
+material here, and does not relicense any upstream Pro code.

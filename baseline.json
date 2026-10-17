@@ -1,0 +1,24 @@
+{
+  "upstream": "https://github.com/remotely-save/remotely-save",
+  "commit": "34db181af002f8d71ea0a87e7965abc57b294914",
+  "custom_plugin_version": "0.5.26",
+  "publication": "Source updates only; no upstream Pro source or compiled plugin is included.",
+  "patches": {
+    "environment-sync-apache.patch": "Changes outside the upstream pro directory, including new modules.",
+    "device-local-pro-integration.patch": "Newly authored insertions only, zero source context. Additional upstream authorization is needed before modifying Pro code."
+  },
+  "validation": {
+    "unit_tests_passed": 80,
+    "production_builds": [
+      "webpack",
+      "esbuild"
+    ],
+    "webdav_host_boundary_cases": [
+      "desktop",
+      "ios",
+      "desktop-openssl",
+      "ios-openssl"
+    ],
+    "iphone_hardware_verified": false
+  }
+}
